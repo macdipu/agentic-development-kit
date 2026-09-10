@@ -1,0 +1,6 @@
+{
+  "source": "agentic/skills",
+  "version_strategy": "git-revision",
+  "pin_skill_revision_per_run": true,
+  "orchestrator_is_routing_authority": true
+}

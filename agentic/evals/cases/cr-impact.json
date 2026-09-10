@@ -1,0 +1,1 @@
+{"name":"CR routes through impact analysis","input":{"work_type":"change_request"},"expected":{"next_skill":"change-impact-analyzer"}}

@@ -1,0 +1,19 @@
+{
+  "levels": {
+    "L0": "read-only",
+    "L1": "analyze",
+    "L2": "generate-artifacts",
+    "L3": "create-tasks-or-branches",
+    "L4": "modify-code",
+    "L5": "trigger-non-production-ci",
+    "L6": "prepare-release",
+    "L7": "production-action"
+  },
+  "defaults": {
+    "business-requirement-analyzer": "L2",
+    "technical-architecture-planner": "L2",
+    "implementation-agent": "L4",
+    "automated-qa-agent": "L5",
+    "release-readiness-agent": "L6"
+  }
+}

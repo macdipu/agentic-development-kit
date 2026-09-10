@@ -1,0 +1,13 @@
+{
+  "context_strategy": "context-first-incremental",
+  "input_modes": [
+    "prompt-first",
+    "document-first"
+  ],
+  "full_brownfield_audit": "only_when_no_usable_baseline",
+  "max_agent_retries": 2,
+  "audit_tool_calls": true,
+  "direct_production_write": false,
+  "require_release_approval": true,
+  "record_task_timing": true
+}

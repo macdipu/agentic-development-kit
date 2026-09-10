@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "status"
+  ],
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "array"
+    },
+    "blocking_issues": {
+      "type": "array"
+    },
+    "open_questions": {
+      "type": "array"
+    },
+    "recommended_next_step": {
+      "type": "string"
+    }
+  }
+}

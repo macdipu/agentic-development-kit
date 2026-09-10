@@ -1,0 +1,14 @@
+module: example
+status: MISSING
+confidence: UNKNOWN
+paths:
+  frontend: []
+  backend: []
+dependencies: []
+apis: []
+database: []
+shared_components: []
+tests: []
+known_risks: []
+last_indexed_revision: null
+evidence: []
