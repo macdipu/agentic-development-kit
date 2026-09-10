@@ -5,15 +5,22 @@ description: Recover runtime/deployment topology from permitted infrastructure, 
 
 # Runtime Discovery Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Deployment manifests, runtime configuration, service definitions, and permitted operational evidence.
+
+## Procedure
+
+1. Map processes, environments, service dependencies, network boundaries, health checks, and configuration/secret sources.
+2. Compare repository declarations with observed logs or infrastructure only where access is authorized; label the observation date and environment.
+3. Document startup/deployment commands and operational gaps. Route emulator/simulator app previews to device-preview-agent.
+
+## Deliverable
+
+Runtime topology, environment/configuration matrix, evidence provenance, verified commands, and operational unknowns.
+
+## Readiness boundary
+
+Return PARTIAL when deployed state cannot be verified; do not claim repository configuration proves live production state.

@@ -1,6 +1,129 @@
 {
   "source": "agentic/skills",
-  "version_strategy": "git-revision",
+  "version_strategy": "content-sha256",
   "pin_skill_revision_per_run": true,
-  "orchestrator_is_routing_authority": true
+  "orchestrator_is_routing_authority": true,
+  "eligibility": {
+    "prompt-intake-adapter": [
+      "INTAKE"
+    ],
+    "document-intake-adapter": [
+      "INTAKE"
+    ],
+    "intake-change-classifier": [
+      "INTAKE"
+    ],
+    "agentic-sdlc-orchestrator": [
+      "INTAKE",
+      "CONTEXT",
+      "REQUIREMENTS",
+      "IMPACT",
+      "TECHNICAL",
+      "PLANNING",
+      "IMPLEMENTATION",
+      "PREVIEW",
+      "REVIEW",
+      "QA",
+      "UAT",
+      "RELEASE"
+    ],
+    "project-discovery-agent": [
+      "CONTEXT"
+    ],
+    "architecture-reverse-engineer": [
+      "CONTEXT"
+    ],
+    "api-contract-discovery-agent": [
+      "CONTEXT"
+    ],
+    "database-discovery-agent": [
+      "CONTEXT"
+    ],
+    "runtime-discovery-agent": [
+      "CONTEXT"
+    ],
+    "user-flow-discovery-agent": [
+      "CONTEXT"
+    ],
+    "history-analysis-agent": [
+      "CONTEXT"
+    ],
+    "requirement-reconstruction-agent": [
+      "CONTEXT"
+    ],
+    "baseline-verifier": [
+      "CONTEXT"
+    ],
+    "test-baseline-agent": [
+      "CONTEXT",
+      "QA"
+    ],
+    "brownfield-risk-analyzer": [
+      "CONTEXT",
+      "IMPACT"
+    ],
+    "business-requirement-analyzer": [
+      "REQUIREMENTS"
+    ],
+    "srs-generator": [
+      "REQUIREMENTS"
+    ],
+    "requirement-ui-verifier": [
+      "REQUIREMENTS",
+      "QA"
+    ],
+    "change-impact-analyzer": [
+      "IMPACT"
+    ],
+    "adr-generator": [
+      "TECHNICAL"
+    ],
+    "technical-architecture-planner": [
+      "TECHNICAL"
+    ],
+    "technical-spec-generator": [
+      "TECHNICAL"
+    ],
+    "technical-readiness-verifier": [
+      "TECHNICAL"
+    ],
+    "work-item-level-classifier": [
+      "TECHNICAL",
+      "PLANNING"
+    ],
+    "sprint-planner": [
+      "PLANNING"
+    ],
+    "sprint-readiness-verifier": [
+      "PLANNING"
+    ],
+    "effort-estimation-agent": [
+      "TECHNICAL",
+      "PLANNING"
+    ],
+    "epic-verifier": [
+      "PLANNING"
+    ],
+    "task-breakdown-agent": [
+      "TECHNICAL",
+      "PLANNING"
+    ],
+    "implementation-agent": [
+      "IMPLEMENTATION"
+    ],
+    "code-review-agent": [
+      "REVIEW"
+    ],
+    "automated-qa-agent": [
+      "QA"
+    ],
+    "device-preview-agent": [
+      "PREVIEW",
+      "IMPLEMENTATION",
+      "QA"
+    ],
+    "release-readiness-agent": [
+      "RELEASE"
+    ]
+  }
 }

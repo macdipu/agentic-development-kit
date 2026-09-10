@@ -5,15 +5,22 @@ description: Evaluate build, lint, static analysis, unit, integration, contract,
 
 # Automated Qa Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Acceptance criteria, changed scope, test baseline, build/run commands, and existing evidence.
+
+## Procedure
+
+1. Select relevant build/static/unit/integration/contract/regression checks from the change impact; reuse project commands.
+2. Run or verify results and record command, environment, revision, exit status, and result artifact. Distinguish failures, skips, flaky reruns, and unavailable checks.
+3. Map acceptance criteria to checks and identify what still needs manual QA or UAT. Request device-preview-agent through the orchestrator for mobile launch/layout evidence.
+
+## Deliverable
+
+Check matrix, acceptance coverage, reproducible defects, skipped/unavailable checks, and QA verdict.
+
+## Readiness boundary
+
+Use PARTIAL for required checks that could not run and BLOCKED for confirmed failing acceptance. Preview screenshots do not replace behavioral tests or human QA.

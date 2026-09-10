@@ -5,15 +5,22 @@ description: Analyze Git, PR, issue, release, and incident history to recover le
 
 # History Analysis Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Affected paths/symbols, current behavior, and accessible Git/PR/issue history.
+
+## Procedure
+
+1. Search scoped history for introduction or changes to the behavior; follow relevant commits and linked decisions.
+2. Separate documented intent from hypotheses based on diffs. Prefer decision records or explicit review discussion for rationale.
+3. Identify reverted approaches, compatibility promises, incident fixes, and constraints still applicable to this request.
+
+## Deliverable
+
+Evidence-linked timeline, confirmed rationale, relevant constraints, and unknown decisions.
+
+## Readiness boundary
+
+Return PARTIAL when history is unavailable; do not manufacture architectural intent from author names or commit timing.

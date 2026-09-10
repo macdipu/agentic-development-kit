@@ -35,3 +35,7 @@ Return:
 - dependency risks
 - estimation assumptions
 - evidence
+
+## Runtime handoff
+
+Use the shared [handoff contract](../RESULT-CONTRACT.md) when submitting results to the reference runtime. Put the specialized fields and verdict described above inside `outputs`; retain evidence and blockers in the envelope.

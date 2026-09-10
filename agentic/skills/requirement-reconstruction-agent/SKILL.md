@@ -5,15 +5,22 @@ description: Reconstruct evidence-backed as-is behavior from code, UI, APIs, DB,
 
 # Requirement Reconstruction Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+As-is code/flow/API/data evidence and any existing requirements.
+
+## Procedure
+
+1. Reconstruct actors, triggers, observable outcomes, validations, and exception paths for the affected capability.
+2. Assign recovered requirement IDs and link each to implementation or runtime evidence with confidence.
+3. Separate existing behavior from intended behavior and surface inconsistencies for human correction before establishing a baseline.
+
+## Deliverable
+
+Recovered as-is requirements, evidence/confidence matrix, contradictions, and validation questions.
+
+## Readiness boundary
+
+Do not mark inferred behavior as approved business truth; block a definitive baseline where contradictory evidence changes the requirement.

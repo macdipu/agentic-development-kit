@@ -5,15 +5,22 @@ description: Verify that an epic fully covers approved scope, acceptance criteri
 
 # Epic Verifier
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Proposed epic/stories/tasks, requirement coverage, dependencies, and selected planning depth.
+
+## Procedure
+
+1. Confirm an epic is warranted by the work-level classification; do not create one for task-only work.
+2. Map requirements and acceptance criteria to stories/tasks across relevant implementation, data, integration, QA, and operational work.
+3. Check missing/duplicate scope, dependency ordering, ownership assumptions, and integration acceptance.
+
+## Deliverable
+
+Coverage matrix, scope/dependency gaps, readiness verdict, and recommended plan corrections.
+
+## Readiness boundary
+
+Block commitment when required scope has no delivery/test coverage or an unresolved dependency prevents execution.

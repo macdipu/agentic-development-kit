@@ -5,15 +5,22 @@ description: Assess code review, QA, UAT, migration, rollback, configuration, mo
 
 # Release Readiness Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Release scope, review/QA evidence, required human approvals, deployment/migration plan, and rollback/monitoring details.
+
+## Procedure
+
+1. Verify that evidence and approvals refer to the current scope/artifact revisions and all required acceptance checks are accounted for.
+2. Review compatibility, configuration, migration ordering, rollback feasibility, health checks, and ownership for the planned release.
+3. List residual risks and unresolved gates; prepare the readiness recommendation without deploying or granting approval.
+
+## Deliverable
+
+Release-readiness checklist, current artifact/approval references, risks, blockers, and proposed next action.
+
+## Readiness boundary
+
+Block release readiness when required review, QA, UAT, release approval, or rollback evidence is absent under project policy.

@@ -5,15 +5,22 @@ description: Create a traceable software requirements specification from approve
 
 # Srs Generator
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Verified requirement list, UI/flow references, constraints, and explicit source approvals where required.
+
+## Procedure
+
+1. Organize functional/nonfunctional requirements, interfaces, data rules, roles, flows, and error behavior under stable IDs.
+2. Trace each specification item to its source and acceptance criteria; retain unresolved decisions explicitly.
+3. Check terminology and cross-references, remove duplication, and update only affected sections of an existing SRS.
+
+## Deliverable
+
+SRS artifact, source/acceptance traceability, changed sections, and unresolved specification questions.
+
+## Readiness boundary
+
+Return PARTIAL or BLOCKED when missing source requirements prevent a complete specification; generated prose is not approval.

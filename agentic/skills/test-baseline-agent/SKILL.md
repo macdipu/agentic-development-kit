@@ -5,15 +5,22 @@ description: Map current behavior/modules to test evidence and identify coverage
 
 # Test Baseline Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Affected modules/behavior, current tests, CI commands, and permitted execution environment.
+
+## Procedure
+
+1. Map behavior and risk to existing unit, integration, contract, UI, and regression checks.
+2. Run a scoped baseline where appropriate and separate pre-existing failures from untested paths; record environment and revision.
+3. Identify missing coverage, flaky checks, fixture/dependency gaps, and a minimum regression set for the requested change.
+
+## Deliverable
+
+Baseline check results, coverage map, pre-existing failures, gaps, and recommended regression commands.
+
+## Readiness boundary
+
+Return PARTIAL when required dependencies prevent baseline execution; do not attribute existing failures to a change without evidence.

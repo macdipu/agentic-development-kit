@@ -5,15 +5,22 @@ description: Create ADRs only for significant architecture decisions, including 
 
 # Adr Generator
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+A significant proposed architecture decision, alternatives, constraints, and relevant existing ADRs.
+
+## Procedure
+
+1. First determine whether a material decision exists; ordinary changes following established patterns may need no ADR.
+2. For a material decision, document context, viable alternatives, tradeoffs, selected proposal, consequences, and superseded decisions.
+3. Record status as proposed until explicit approval exists; link supporting requirements, design, and decision authority.
+
+## Deliverable
+
+ADR artifact or a supported no-ADR-needed rationale, related decision IDs, and approval status.
+
+## Readiness boundary
+
+Block a definitive decision when its constraints or decision authority are unresolved; do not invent approval or manufacture alternatives.

@@ -5,15 +5,22 @@ description: Analyze a change request against the current baseline and identify 
 
 # Change Impact Analyzer
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Requested delta, current implementation/context, related requirements, APIs, data, and tests.
+
+## Procedure
+
+1. Describe before/after behavior and identify affected modules, callers, shared components, contracts, migrations, and configuration.
+2. Trace direct and relevant transitive dependencies; distinguish confirmed impact from areas needing investigation.
+3. Identify artifacts and approvals to reopen, compatibility risks, regression scope, and rollback needs. Preserve unaffected baseline artifacts.
+
+## Deliverable
+
+Delta summary, impact matrix with evidence and confidence, affected artifacts, regression targets, and readiness/planning recommendation.
+
+## Readiness boundary
+
+Block implementation readiness when a potentially breaking contract or migration has unresolved consumers or data semantics.

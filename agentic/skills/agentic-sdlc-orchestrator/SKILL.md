@@ -27,3 +27,9 @@ description: Coordinate Agentic SDLC workflows for greenfield and brownfield pro
 13. Persist validated context/artifact deltas and timing telemetry.
 
 Do not infer human approval. Do not force an Epic, Story, or Sprint Planning stage when the existing work item and delivery state make it unnecessary.
+
+For emulator, simulator, or connected-device preview requests, select `device-preview-agent` using [mobile preview routing](../../workflows/routing.md#mobile-device-preview). Reuse this skill during implementation or QA when on-device visual evidence is needed.
+
+## Runtime handoff
+
+Use the shared [handoff contract](../RESULT-CONTRACT.md) when submitting results to the reference runtime. Put the specialized fields and verdict described above inside `outputs`; retain evidence and blockers in the envelope.

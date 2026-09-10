@@ -5,15 +5,22 @@ description: Classify incoming software work as new feature, change request, bug
 
 # Intake Change Classifier
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Normalized work item, current behavior, and affected context.
+
+## Procedure
+
+1. Compare requested behavior to the baseline: new capability, change to existing capability, defect, emergency repair, technical change, security change, or discovery.
+2. State why the classification fits and identify mixed work that needs separate tracking only when it has independent acceptance criteria.
+3. Pass impact and urgency evidence to the orchestrator. Do not derive hierarchy, sprint planning, or emergency authority from the work-type label.
+
+## Deliverable
+
+work_type, rationale, affected_scope, urgency_evidence, related_items, and classification uncertainty.
+
+## Readiness boundary
+
+Return PARTIAL when the baseline is insufficient to distinguish a feature change from a defect; request scoped discovery.

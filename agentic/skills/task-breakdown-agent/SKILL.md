@@ -5,15 +5,22 @@ description: Break verified work into implementation-ready FE, BE, DB, integrati
 
 # Task Breakdown Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Verified scope, work-level classification, technical spec, dependencies, and existing approved tasks.
+
+## Procedure
+
+1. Reuse existing tasks; split new work into bounded units with observable acceptance criteria and clear affected components.
+2. Record task IDs, dependencies, implementation requirements, tests, references, and exclusions using the task template.
+3. Sequence dependency chains and identify work that can proceed independently; avoid splitting merely by artifact count or creating redundant hierarchy.
+
+## Deliverable
+
+Implementation-ready task list, dependency graph, requirement/test coverage, and unresolved ownership or sequencing decisions.
+
+## Readiness boundary
+
+Block task readiness when implementation requires unstated rules, missing contracts, or unavailable blocking dependencies.

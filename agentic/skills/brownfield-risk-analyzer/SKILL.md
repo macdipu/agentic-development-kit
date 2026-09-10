@@ -5,15 +5,22 @@ description: Assess legacy areas for coupling, missing tests, unknown ownership,
 
 # Brownfield Risk Analyzer
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Scoped baseline, change impact, test evidence, dependency and operational constraints.
+
+## Procedure
+
+1. Identify coupling, untested paths, unsupported components, data or security boundaries, and deployment fragility relevant to the change.
+2. For each risk, record a concrete trigger, affected outcome, likelihood rationale, impact, evidence, and possible mitigation.
+3. Prioritize investigation and tests by change exposure; distinguish baseline debt from risks introduced by this work.
+
+## Deliverable
+
+Prioritized risk register, targeted discovery/test actions, residual risks, and recommended gates.
+
+## Readiness boundary
+
+Block readiness for an unresolved risk that prevents safe implementation or verification; avoid unrelated repository-wide hardening.

@@ -37,6 +37,9 @@
 - `agentic/skills/change-impact-analyzer/SKILL.md`
 - `agentic/skills/code-review-agent/SKILL.md`
 - `agentic/skills/database-discovery-agent/SKILL.md`
+- `agentic/skills/device-preview-agent/SKILL.md`
+- `agentic/skills/device-preview-agent/references/android.md`
+- `agentic/skills/device-preview-agent/references/ios.md`
 - `agentic/skills/document-intake-adapter/SKILL.md`
 - `agentic/skills/effort-estimation-agent/SKILL.md`
 - `agentic/skills/epic-verifier/SKILL.md`

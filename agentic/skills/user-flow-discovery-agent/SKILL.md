@@ -5,15 +5,22 @@ description: Recover screens, navigation, forms, validations, state transitions,
 
 # User Flow Discovery Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Affected UI routes/screens, requirements, navigation code, and existing UI tests or preview evidence.
+
+## Procedure
+
+1. Trace entry points, navigation, user roles, forms, validation, asynchronous states, and terminal outcomes.
+2. Compare flow requirements with implementation, including loading, empty, error, denied-permission, and retry paths relevant to scope.
+3. Link each observed flow to screens/components/tests and mark gaps requiring a device preview or stakeholder clarification.
+
+## Deliverable
+
+Screen/state/transition map, role and validation rules, requirement links, and uncovered paths.
+
+## Readiness boundary
+
+Return PARTIAL when behavior is inferred from code without runtime verification; request device-preview-agent when visual evidence is needed.

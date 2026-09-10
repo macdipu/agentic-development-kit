@@ -1,25 +1,293 @@
+import hashlib
+import json
 import uuid
 from datetime import datetime, timezone
-from .models import WorkflowRun
-from .policy import evaluate
+from pathlib import Path
 
-def now(): return datetime.now(timezone.utc).isoformat()
+from .context import snapshot, snapshot_state
+from .contracts import SUCCESS_STATUSES, validate_result
+from .models import WorkflowRun
+from .policy import evaluate, workflow_route
+from .registry import SkillRegistry, ToolRegistry
+from .security import redact_value
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
 
 class Orchestrator:
-    def __init__(self, store): self.store = store
-    def start(self, project, work_type, title, dry_run=False):
-        ts = now()
-        run = WorkflowRun(run_id="RUN-"+uuid.uuid4().hex[:10].upper(), project=project, work_type=work_type, title=title, status="RUNNING", dry_run=dry_run, created_at=ts, updated_at=ts)
-        self.store.save_run(run); self.store.checkpoint(run.run_id, run.stage, run.status, {}, ts)
-        return run
-    def transition(self, run_id, next_stage):
+    """Local cooperative governance for trusted adapters; not an OS sandbox."""
+
+    def __init__(self, store, kit_dir=None, tools=None):
+        self.store = store
+        self.kit_dir = Path(kit_dir) if kit_dir else Path(__file__).resolve().parents[3]
+        self.registry = SkillRegistry(self.kit_dir / 'skills')
+        self.tools = tools or ToolRegistry()
+        self.policy = json.loads((self.kit_dir / 'config/platform.json').read_text())
+        self.capabilities = json.loads((self.kit_dir / 'config/capabilities.json').read_text())['defaults']
+        for key in ('max_agent_retries', 'max_task_seconds', 'max_tool_calls_per_task'):
+            if type(self.policy.get(key)) is not int or self.policy[key] < (0 if key == 'max_agent_retries' else 1):
+                raise ValueError('Invalid runtime budget: ' + key)
+        if self.policy.get('direct_production_write') is not False:
+            raise ValueError('Production execution is unsupported')
+        for key in ('audit_tool_calls', 'record_task_timing', 'require_release_approval'):
+            if self.policy.get(key) is not True:
+                raise ValueError('Required local control cannot be disabled: ' + key)
+        if type(self.policy.get('require_uat_approval')) is not bool:
+            raise ValueError('require_uat_approval must be boolean')
+
+    def _config_hash(self):
+        data = b''.join((self.kit_dir / 'config' / name).read_bytes() for name in ('platform.json', 'capabilities.json', 'skill-registry.json'))
+        return hashlib.sha256(data).hexdigest()
+
+    def _run(self, run_id, allow_terminal=False):
         run = self.store.get_run(run_id)
-        if not run: raise ValueError("Unknown run")
-        approvals = {"technical": self.store.has_approval(run_id,"technical"), "release": self.store.has_approval(run_id,"release")}
-        decision = evaluate(next_stage, approvals)
-        if not decision.allowed:
-            run.status = "BLOCKED"; run.metadata["policy_reasons"] = decision.reasons
-        else:
-            run.stage = next_stage; run.status = "RUNNING"
-        run.updated_at = now(); self.store.save_run(run); self.store.checkpoint(run.run_id, run.stage, run.status, run.metadata, run.updated_at)
+        if not run:
+            raise ValueError('Unknown run')
+        if run.metadata.get('runtime_version') != 2:
+            raise ValueError('Legacy run is read-only; start a new governed run with reviewed evidence')
+        if not allow_terminal and run.status in {'CANCELLED', 'COMPLETED'}:
+            raise ValueError('Run is terminal')
         return run
+
+    def _current_config(self, run):
+        if run.metadata['config_hash'] != self._config_hash():
+            raise ValueError('Configuration changed; start a new run to adopt it')
+
+    def _save(self, run, event, payload=None):
+        run.updated_at = now()
+        self.store.save_checkpoint(run, event, payload)
+
+    def start(self, project, work_type, title, dry_run=False, repo=None, planning='NO_REPLAN'):
+        if not project.strip() or not title.strip():
+            raise ValueError('Project and title are required')
+        route = workflow_route(work_type, planning, self.policy['require_uat_approval'])
+        root = Path(repo or self.kit_dir.parent).resolve()
+        if not root.is_dir():
+            raise ValueError('Project root must exist')
+        ts = now()
+        run = WorkflowRun('RUN-' + uuid.uuid4().hex.upper(), project, work_type, title, status='RUNNING', dry_run=dry_run, created_at=ts, updated_at=ts)
+        run.metadata = {'runtime_version': 2, 'repo': str(root), 'route': route, 'planning': planning, 'scope_revision': 0,
+                        'config_hash': self._config_hash(), 'skill_pins': {k: v['revision'] for k, v in self.registry.discover().items()},
+                        'results': {}, 'attempts': {}, 'active_task': None}
+        with self.store.transaction():
+            self._save(run, 'RUN_STARTED')
+        return run
+
+    def eligible_skills(self, run_id):
+        run = self._run(run_id)
+        self._current_config(run)
+        return self.registry.eligible(run.stage)
+
+    def record_context(self, run_id, paths):
+        with self.store.transaction():
+            run = self._run(run_id)
+            if run.metadata['active_task']:
+                raise ValueError('Cannot refresh context during an active task')
+            run.metadata['context'] = snapshot(run.metadata['repo'], paths)
+            self._save(run, 'CONTEXT_REFRESHED', {'paths': paths})
+        return run
+
+    def _fresh(self, run):
+        state = snapshot_state(run.metadata['repo'], run.metadata.get('context'))
+        if state != 'AVAILABLE':
+            raise ValueError('Context is ' + state + '; review and refresh the affected scope')
+
+    def transition(self, run_id, next_stage):
+        with self.store.transaction():
+            run = self._run(run_id)
+            self._current_config(run)
+            if run.metadata['active_task']:
+                raise ValueError('Task is still active')
+            route = run.metadata['route']
+            index = route.index(run.stage)
+            if index + 1 >= len(route) or next_stage != route[index + 1]:
+                raise ValueError('Invalid transition; next stage is ' + (route[index + 1] if index + 1 < len(route) else 'none'))
+            result = run.metadata['results'].get(run.stage, {})
+            if result.get('status') not in SUCCESS_STATUSES:
+                raise ValueError('Current stage needs a ready result with evidence')
+            if run.stage == 'CONTEXT' or next_stage not in {'CONTEXT', 'COMPLETED'}:
+                self._fresh(run)
+            approvals = {gate: self.store.has_approval(run_id, gate) for gate in ('technical', 'release', 'uat')}
+            decision = evaluate(next_stage, approvals)
+            if not decision.allowed:
+                raise ValueError('; '.join(decision.reasons))
+            if run.stage == 'UAT' and not approvals['uat']:
+                raise ValueError('Missing UAT approval')
+            if run.stage == 'RELEASE' and not approvals['release']:
+                raise ValueError('Missing release approval')
+            run.stage = next_stage
+            run.status = 'COMPLETED' if next_stage == 'COMPLETED' else 'RUNNING'
+            self._save(run, 'STAGE_CHANGED')
+        return run
+
+    def approve(self, run_id, gate, approver, decision='APPROVED', comment=''):
+        with self.store.transaction():
+            run = self._run(run_id)
+            self._current_config(run)
+            if run.metadata['active_task']:
+                raise ValueError('Cannot approve while a task is active')
+            prerequisite = {'technical': 'CONTEXT' if run.work_type == 'existing_task' else 'TECHNICAL', 'release': 'QA', 'uat': 'UAT'}.get(gate)
+            if prerequisite not in run.metadata['route']:
+                raise ValueError('Gate is not applicable to this workflow')
+            if decision == 'APPROVED':
+                if run.metadata['results'].get(prerequisite, {}).get('status') not in SUCCESS_STATUSES:
+                    raise ValueError('Approval needs ready evidence for ' + prerequisite)
+                self._fresh(run)
+            self.store.approval(run_id, gate, approver, decision, comment, now(), run.metadata['scope_revision'])
+            self._save(run, 'APPROVAL_RECORDED', {'gate': gate, 'decision': decision, 'by': approver})
+        return run
+
+    def reopen(self, run_id, reason):
+        if not reason.strip():
+            raise ValueError('Reopen requires a scope/rework reason')
+        with self.store.transaction():
+            run = self._run(run_id)
+            if run.metadata['active_task']:
+                raise ValueError('Task is still active')
+            # Retain intake, invalidate downstream evidence and all prior approvals.
+            run.metadata['scope_revision'] += 1
+            run.metadata['results'] = {k: v for k, v in run.metadata['results'].items() if k == 'INTAKE'}
+            run.metadata.pop('context', None)
+            run.stage, run.status = 'CONTEXT', 'RUNNING'
+            self._save(run, 'SCOPE_REOPENED', {'reason': reason})
+        return run
+
+    def cancel(self, run_id):
+        with self.store.transaction():
+            run = self._run(run_id)
+            run.status = 'CANCELLED'
+            task = run.metadata['active_task']
+            if task:
+                self.store.timing(run_id, task['id'], 'CANCELLED', now())
+            run.metadata['active_task'] = None
+            self._save(run, 'RUN_CANCELLED')
+        return run
+
+    def recover(self, run_id, reason):
+        """Operator acknowledges an interrupted adapter; never replay side effects."""
+        if not reason.strip():
+            raise ValueError('Recovery requires an interruption explanation')
+        with self.store.transaction():
+            run = self._run(run_id)
+            task = run.metadata['active_task']
+            if not task:
+                raise ValueError('No interrupted task to recover')
+            run.metadata['active_task'] = None
+            run.status = 'BLOCKED'
+            self.store.timing(run_id, task['id'], 'INTERRUPTED', now(), {'reason': reason})
+            self._save(run, 'TASK_RECOVERED', {'reason': reason})
+        return run
+
+    def _active(self, run_id, task_id):
+        run = self._run(run_id)
+        self._current_config(run)
+        task = run.metadata['active_task']
+        if not task or task['id'] != task_id:
+            raise ValueError('Task is no longer active')
+        elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(task['started_at'])).total_seconds()
+        if elapsed >= self.policy['max_task_seconds']:
+            raise TimeoutError('Task execution budget exhausted')
+        return run, task
+
+    def execute(self, run_id, skill, handler):
+        """Run a trusted adapter(context, call_tool) and validate its handoff."""
+        with self.store.transaction():
+            run = self._run(run_id)
+            self._current_config(run)
+            if run.metadata['active_task']:
+                raise ValueError('A task is already active; recover only after its worker has stopped')
+            item = self.registry.discover().get(skill)
+            if not item or run.stage not in item['stages']:
+                raise ValueError('Skill is not eligible for this stage')
+            if item['revision'] != run.metadata['skill_pins'].get(skill):
+                raise ValueError('Pinned skill content changed; start a new run')
+            if run.stage not in {'INTAKE', 'CONTEXT'}:
+                self._fresh(run)
+            decision = evaluate(run.stage, {g: self.store.has_approval(run_id, g) for g in ('technical', 'release')})
+            if not decision.allowed:
+                raise ValueError('; '.join(decision.reasons))
+            key = f"{run.metadata['scope_revision']}:{run.stage}:{skill}"
+            attempts = run.metadata['attempts'].get(key, 0)
+            if attempts > self.policy['max_agent_retries']:
+                raise ValueError('Retry budget exhausted')
+            run.metadata['attempts'][key] = attempts + 1
+            task = {'id': uuid.uuid4().hex, 'skill': skill, 'started_at': now(), 'tool_calls': 0}
+            run.metadata['active_task'] = task
+            run.metadata['results'].pop(run.stage, None)
+            run.status = 'RUNNING'
+            self.store.timing(run_id, task['id'], 'STARTED', task['started_at'], {'skill': skill, 'retry_count': attempts})
+            self._save(run, 'TASK_STARTED', {'skill': skill})
+        try:
+            context = {'run': redact_value(run.to_dict()), 'skill_path': item['path'], 'instructions': Path(item['path']).read_text(), 'context_files': {}}
+            for name in run.metadata.get('context', {}).get('files', {}):
+                context['context_files'][name] = redact_value((Path(run.metadata['repo']) / name).read_text(encoding='utf-8'))
+            result = handler(context, lambda name, arguments=None, idempotency_key=None: self.call_tool(run_id, task['id'], name, arguments or {}, idempotency_key))
+            result = redact_value(validate_result(result))
+            # Ensure persisted adapter outputs are JSON serializable before acceptance.
+            json.dumps(result, allow_nan=False)
+            with self.store.transaction():
+                current, active = self._active(run_id, task['id'])
+                if self.registry.discover()[skill]['revision'] != current.metadata['skill_pins'][skill]:
+                    raise ValueError('Skill changed during execution')
+                current.metadata['active_task'] = None
+                current.metadata['results'][current.stage] = result
+                current.status = 'RUNNING' if result['status'] in SUCCESS_STATUSES else 'BLOCKED'
+                duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
+                self.store.timing(run_id, task['id'], 'COMPLETED', now(), {'duration_ms': duration, 'result_status': result['status']})
+                self._save(current, 'RESULT_RECORDED', {'skill': skill, 'result': result})
+            return result
+        except BaseException as exc:
+            with self.store.transaction():
+                current = self._run(run_id, allow_terminal=True)
+                active = current.metadata['active_task']
+                if active and active['id'] == task['id']:
+                    current.metadata['active_task'] = None
+                    current.status = 'BLOCKED'
+                    duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
+                    self.store.timing(run_id, task['id'], 'FAILED', now(), {'error': str(exc), 'duration_ms': duration})
+                    self._save(current, 'TASK_FAILED', {'error': str(exc)})
+            raise
+
+    def call_tool(self, run_id, task_id, name, arguments, idempotency_key=None):
+        # Reserve before invoking: a crash leaves an unknown outcome, never an automatic replay.
+        with self.store.transaction():
+            run, task = self._active(run_id, task_id)
+            if not self.tools.allowed(name, self.capabilities.get(task['skill'])):
+                raise PermissionError('Tool capability denied: ' + name)
+            tool = self.tools.tools[name]
+            if task['tool_calls'] >= self.policy['max_tool_calls_per_task']:
+                raise ValueError('Tool call budget exhausted')
+            if tool['side_effecting'] and not idempotency_key:
+                raise ValueError('Side-effecting tools require an idempotency key')
+            payload = {'name': name, 'arguments': arguments}
+            digest = hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False).encode()).hexdigest()
+            call_key = f"{run.metadata['scope_revision']}:{idempotency_key}" if idempotency_key else uuid.uuid4().hex
+            if tool['side_effecting'] and run.dry_run:
+                self.store.audit(run_id, 'TOOL_DRY_RUN', {'name': name}, now())
+                return {'dry_run': True, 'tool': name, 'invoked': False}
+            previous = self.store.conn.execute('SELECT * FROM tool_calls WHERE run_id=? AND call_key=?', (run_id, call_key)).fetchone()
+            if previous:
+                if previous['request_hash'] != digest:
+                    raise ValueError('Idempotency key reused for a different request')
+                if previous['status'] != 'COMPLETED':
+                    raise ValueError('Previous tool outcome unknown or failed; reconcile before a new attempt')
+                return json.loads(previous['result_json'])
+            task['tool_calls'] += 1
+            self.store.conn.execute('INSERT INTO tool_calls(run_id,call_key,request_hash,status) VALUES(?,?,?,?)', (run_id,call_key,digest,'STARTED'))
+            self._save(run, 'TOOL_STARTED', {'name': name, 'call_key': call_key})
+        try:
+            output = redact_value(tool['handler'](**arguments))
+            encoded = json.dumps(output, allow_nan=False)
+            with self.store.transaction():
+                self.store.conn.execute('UPDATE tool_calls SET status=?,result_json=? WHERE run_id=? AND call_key=?', ('COMPLETED',encoded,run_id,call_key))
+                self.store.audit(run_id, 'TOOL_COMPLETED', {'name': name}, now())
+            # Cancellation/timeouts cannot undo a completed external effect.
+            self._active(run_id, task_id)
+            return output
+        except BaseException as exc:
+            with self.store.transaction():
+                self.store.conn.execute("UPDATE tool_calls SET status='FAILED' WHERE run_id=? AND call_key=? AND status='STARTED'", (run_id,call_key))
+                self.store.audit(run_id, 'TOOL_FAILED', {'name': name, 'error': str(exc)}, now())
+            raise

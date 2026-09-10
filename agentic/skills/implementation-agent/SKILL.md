@@ -5,15 +5,23 @@ description: Implement an approved task using project context, existing architec
 
 # Implementation Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Approved bounded task, technical/context evidence, applicable conventions, and acceptance/test requirements.
+
+## Procedure
+
+1. Confirm scope and relevant approvals; inspect existing implementations and reuse established components.
+2. Make the smallest coherent change satisfying the task, preserving unrelated edits. Route material impact changes back to the orchestrator.
+3. Run checks appropriate to the affected behavior; inspect failures and record exact results. For mobile UI changes request device-preview-agent through the orchestrator when visual evidence is needed.
+4. Update affected documentation/context and map changes to acceptance criteria; report unfinished work explicitly.
+
+## Deliverable
+
+Changed paths and rationale, acceptance coverage, check evidence, context/artifact deltas, and remaining risks.
+
+## Readiness boundary
+
+Block when required approval, business behavior, or a critical dependency is missing. A compiled build alone does not prove acceptance.

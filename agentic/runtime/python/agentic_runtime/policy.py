@@ -1,21 +1,40 @@
 from dataclasses import dataclass
-from typing import Dict, List
+
+WORK_TYPES = {"new_feature", "change_request", "bug", "hotfix", "technical_change", "security_change", "discovery", "existing_task", "device_preview"}
+PLANNING = {"FULL_SPRINT_PLANNING", "ADD_TO_EXISTING_SPRINT", "BACKLOG_ONLY", "EXPEDITED", "NO_REPLAN"}
+STAGES = {"INTAKE", "CONTEXT", "REQUIREMENTS", "IMPACT", "TECHNICAL", "PLANNING", "IMPLEMENTATION", "PREVIEW", "REVIEW", "QA", "UAT", "RELEASE", "COMPLETED"}
+REQUIRED_GATES = {"IMPLEMENTATION": "technical", "RELEASE": "release"}
+
 
 @dataclass
 class PolicyDecision:
     allowed: bool
-    reasons: List[str]
+    reasons: list
 
-REQUIRED_GATES = {
-    "IMPLEMENTATION": "technical",
-    "RELEASE": "release",
-}
 
-def evaluate(stage: str, approvals: Dict[str, bool], direct_production_write: bool=False) -> PolicyDecision:
-    reasons = []
+def workflow_route(work_type, planning="NO_REPLAN", require_uat=False):
+    if work_type not in WORK_TYPES or planning not in PLANNING:
+        raise ValueError("Unknown work type or sprint handling")
+    route = ["INTAKE", "CONTEXT"]
+    if work_type == "device_preview":
+        return route + ["PREVIEW", "COMPLETED"]
+    if work_type == "discovery":
+        return route + ["REVIEW", "COMPLETED"]
+    if work_type == "new_feature":
+        route += ["REQUIREMENTS", "TECHNICAL"]
+    elif work_type != "existing_task":
+        route += ["IMPACT", "TECHNICAL"]
+    if planning in {"FULL_SPRINT_PLANNING", "ADD_TO_EXISTING_SPRINT", "BACKLOG_ONLY"}:
+        route += ["PLANNING"]
+    if planning == "BACKLOG_ONLY":
+        return route + ["COMPLETED"]
+    return route + ["IMPLEMENTATION", "REVIEW", "QA"] + (["UAT"] if require_uat else []) + ["RELEASE", "COMPLETED"]
+
+
+def evaluate(stage, approvals, direct_production_write=False):
+    # Production execution is intentionally unsupported in this local runtime.
+    if stage not in STAGES:
+        return PolicyDecision(False, ["Unknown or unsupported stage: " + stage])
     gate = REQUIRED_GATES.get(stage)
-    if gate and not approvals.get(gate, False):
-        reasons.append(f"Missing required approval gate: {gate}")
-    if stage == "PRODUCTION_WRITE" and not direct_production_write:
-        reasons.append("Direct production write is disabled")
-    return PolicyDecision(allowed=not reasons, reasons=reasons)
+    reasons = ["Missing required approval gate: " + gate] if gate and not approvals.get(gate, False) else []
+    return PolicyDecision(not reasons, reasons)

@@ -5,15 +5,22 @@ description: Produce implementation-ready technical specification, LLD, API cont
 
 # Technical Spec Generator
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Requirements, architecture proposal/decisions, current conventions, APIs/data model, and test strategy.
+
+## Procedure
+
+1. Translate each affected requirement into concrete component changes, interfaces, validation, error handling, and observability.
+2. Specify migration/configuration impacts, compatibility, rollback, and test cases only where the change requires them.
+3. Link implementation boundaries to existing code and document unresolved technical choices separately from settled requirements.
+
+## Deliverable
+
+Implementation specification/LLD, requirement-to-component mapping, contract/data changes, test plan, and open decisions.
+
+## Readiness boundary
+
+Block when an implementer would have to invent business rules or a consequential integration contract.

@@ -1,1 +1,84 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["run_id","project","work_type","stage","status"],"properties":{"run_id":{"type":"string"},"project":{"type":"string"},"work_type":{"type":"string"},"stage":{"type":"string"},"status":{"type":"string"},"dry_run":{"type":"boolean"}}}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "project",
+    "work_type",
+    "title",
+    "stage",
+    "status",
+    "dry_run",
+    "created_at",
+    "updated_at",
+    "metadata"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "work_type": {
+      "enum": [
+        "bug",
+        "change_request",
+        "device_preview",
+        "discovery",
+        "existing_task",
+        "hotfix",
+        "new_feature",
+        "security_change",
+        "technical_change"
+      ]
+    },
+    "stage": {
+      "enum": [
+        "COMPLETED",
+        "CONTEXT",
+        "IMPACT",
+        "IMPLEMENTATION",
+        "INTAKE",
+        "PLANNING",
+        "PREVIEW",
+        "QA",
+        "RELEASE",
+        "REQUIREMENTS",
+        "REVIEW",
+        "TECHNICAL",
+        "UAT"
+      ]
+    },
+    "status": {
+      "enum": [
+        "CREATED",
+        "RUNNING",
+        "BLOCKED",
+        "CANCELLED",
+        "COMPLETED"
+      ]
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}

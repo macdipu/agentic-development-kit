@@ -11,6 +11,7 @@
 - `change-impact-analyzer` - Analyze a change request against the current baseline and identify affected requirements, modules, UI, APIs, database, architecture, code, tests, security, approvals, and workflow gates.
 - `code-review-agent` - Review implementation against requirements, architecture, security, reliability, conventions, tests, and unintended changes.
 - `database-discovery-agent` - Recover database schemas, relationships, ownership, migrations, indexes, transaction boundaries, and risks.
+- `device-preview-agent` - Build, launch, and visually verify mobile apps in Android emulators, iOS simulators, or a requested connected device, with screenshots and targeted UI smoke checks.
 - `document-intake-adapter` - Load and validate an existing FEATURE.md, CR.md, BUG.md, HOTFIX.md, or equivalent work-item document and normalize it for the Agentic SDLC.
 - `effort-estimation-agent` - Assess relative implementation effort, uncertainty, dependency sequencing, critical path, and parallelizable work for software features, change requests, bugs, hotfixes, and technical changes. Use when planning needs delivery sizing or sequencing; do not invent precise calendar estimates when evidence is insufficient.
 - `epic-verifier` - Verify that an epic fully covers approved scope, acceptance criteria, UI, technical impacts, QA, security, and dependencies.

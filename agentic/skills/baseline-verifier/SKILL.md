@@ -5,15 +5,22 @@ description: Verify a recovered brownfield baseline against available evidence a
 
 # Baseline Verifier
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Recovered requirements/context, evidence references, confidence annotations, and human corrections.
+
+## Procedure
+
+1. Sample each material baseline claim against its source; check that module boundaries, behavior, contracts, and commands agree.
+2. Confirm revisions/fingerprints and ensure stale or missing slices are not labeled available.
+3. Apply explicit corrections with provenance and distinguish reusable confirmed context from provisional sections.
+
+## Deliverable
+
+Baseline verdict, confirmed scope, rejected/provisional claims, freshness record, and refresh tasks.
+
+## Readiness boundary
+
+Return BLOCKED for contradictions affecting the requested behavior; use PARTIAL when only an independently usable subset is verified.

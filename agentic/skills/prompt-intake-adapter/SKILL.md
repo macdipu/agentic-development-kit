@@ -5,15 +5,22 @@ description: Convert a developer prompt describing a feature, CR, bug, hotfix, o
 
 # Prompt Intake Adapter
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Developer request, referenced artifacts, and existing work-item IDs.
+
+## Procedure
+
+1. Extract the requested outcome, current behavior, scope, exclusions, constraints, and acceptance criteria; retain the original request as a reference.
+2. Separate explicit requirements from assumptions and unresolved questions. Reuse an existing work item when the request is steering it.
+3. Classify input completeness and propose a work type. Do not assign business priorities or invent acceptance criteria to fill gaps.
+
+## Deliverable
+
+Canonical work-item draft with source_request, objective, scope, exclusions, constraints, acceptance_criteria, references, and open_questions.
+
+## Readiness boundary
+
+Block downstream implementation when the desired behavior or acceptance criteria cannot be determined; intake may return PARTIAL with a usable draft.

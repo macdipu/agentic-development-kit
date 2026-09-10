@@ -9,5 +9,8 @@
   "audit_tool_calls": true,
   "direct_production_write": false,
   "require_release_approval": true,
-  "record_task_timing": true
+  "record_task_timing": true,
+  "max_task_seconds": 900,
+  "max_tool_calls_per_task": 50,
+  "require_uat_approval": false
 }

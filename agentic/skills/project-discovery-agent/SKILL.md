@@ -5,15 +5,22 @@ description: Discover repository structure, modules, frameworks, dependencies, b
 
 # Project Discovery Agent
 
-## Operating rules
+Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
-1. Load only the relevant work item and project/module context required for this responsibility.
-2. Reuse fresh context; request incremental discovery only when required.
-3. Never invent missing business rules.
-4. Never infer human approval.
-5. Preserve evidence and traceability.
-6. Stay inside this skill's responsibility.
-7. Return explicit status, blockers, open questions, and recommended next step.
-8. Return results to the Workflow Orchestrator for routing.
-9. Do not perform production-impacting actions unless policy and explicit approval permit them.
-10. Do not report guessed task timing; timing is measured by the harness.
+## Inputs
+
+Requested scope and project/module context freshness records.
+
+## Procedure
+
+1. Check existing context before exploring. Bound discovery to missing or stale modules; bootstrap broadly only when no usable baseline exists.
+2. Identify toolchain, application entrypoints, module boundaries, shared components, build/test commands, and integration configuration from repository evidence.
+3. Persist a scoped context artifact with paths, revision/file fingerprints, confidence, known gaps, and refresh triggers.
+
+## Deliverable
+
+Scoped project/module context, verified commands, evidence references, unknowns, and suggested specialist follow-up.
+
+## Readiness boundary
+
+Return PARTIAL for inaccessible modules or unverified commands; never label guessed topology or commands as confirmed.
