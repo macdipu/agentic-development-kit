@@ -34,7 +34,7 @@ adb -s <serial> install -r <apk-path>
 adb -s <serial> shell am start -W -n <application-id>/<launcher-activity>
 ```
 
-The module/task above is illustrative; discover the actual task and artifact. Use a simulator-compatible ABI. For split APKs use the project's supported install path. Resolve the application ID and launcher activity from the selected variant's manifest/artifact. If updating fails due to signatures or a downgrade, report it; do not uninstall and lose data automatically.
+The module/task above is illustrative; discover the actual task and artifact. Use a emulator-compatible ABI. For split APKs use the project's supported install path. Resolve the application ID and launcher activity from the selected variant's manifest/artifact. If updating fails due to signatures or a downgrade, report it; do not uninstall and lose data automatically.
 
 ## Visual evidence and diagnostics
 

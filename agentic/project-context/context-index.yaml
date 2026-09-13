@@ -1,4 +1,8 @@
 system:
   status: MISSING
-modules: {}
+modules:
+  kit-runtime:
+    status: AVAILABLE
+    context_file: agentic/project-context/kit-runtime.json
+    freshness_strategy: scoped-file-sha256
 features: {}

@@ -1,0 +1,12 @@
+{
+  "name": "preview routes directly after context",
+  "kind": "routing",
+  "input": {
+    "work_type": "device_preview",
+    "skill": "device-preview-agent"
+  },
+  "expected": {
+    "next_stage_after_context": "PREVIEW",
+    "requested_skill_eligible": true
+  }
+}

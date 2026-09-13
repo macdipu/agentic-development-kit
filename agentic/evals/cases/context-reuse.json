@@ -1,1 +1,11 @@
-{"name":"reuse fresh context","input":{"context":"AVAILABLE","confidence":"HIGH"},"expected":{"full_discovery":false}}
+{
+  "name": "reuse fresh scoped context",
+  "kind": "context",
+  "input": {
+    "changed": false
+  },
+  "expected": {
+    "state": "AVAILABLE",
+    "refresh_scope": false
+  }
+}

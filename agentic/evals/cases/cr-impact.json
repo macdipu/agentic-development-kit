@@ -1,1 +1,12 @@
-{"name":"CR routes through impact analysis","input":{"work_type":"change_request"},"expected":{"next_skill":"change-impact-analyzer"}}
+{
+  "name": "CR routes to eligible impact analysis",
+  "kind": "routing",
+  "input": {
+    "work_type": "change_request",
+    "skill": "change-impact-analyzer"
+  },
+  "expected": {
+    "next_stage_after_context": "IMPACT",
+    "requested_skill_eligible": true
+  }
+}

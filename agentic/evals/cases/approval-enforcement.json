@@ -1,1 +1,13 @@
-{"name":"implementation requires technical approval","input":{"stage":"IMPLEMENTATION","technical_approval":false},"expected":{"allowed":false}}
+{
+  "name": "implementation requires technical approval",
+  "kind": "policy",
+  "input": {
+    "stage": "IMPLEMENTATION",
+    "approvals": {
+      "technical": false
+    }
+  },
+  "expected": {
+    "allowed": false
+  }
+}

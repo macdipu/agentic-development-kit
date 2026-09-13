@@ -91,7 +91,7 @@ class RuntimeStore:
     def approval(self, run_id, gate, approver, decision, comment, ts, scope_revision=-1):
         if not self.get_run(run_id):
             raise ValueError("Unknown run")
-        if gate not in {"technical", "release", "uat"} or decision not in {"APPROVED", "REJECTED"} or not approver.strip():
+        if gate not in {"technical", "release", "uat"} or decision not in {"APPROVED", "REJECTED", "REVOKED"} or not approver.strip():
             raise ValueError("Invalid approval record")
         self.conn.execute("INSERT INTO approvals(run_id,gate,approver,decision,comment,created_at,scope_revision) VALUES(?,?,?,?,?,?,?)", (run_id,gate,approver,decision,comment,ts,scope_revision))
         self._commit()

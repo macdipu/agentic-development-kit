@@ -16,5 +16,5 @@ The reference runtime provides enforceable local behavior but production deploym
 - [ ] Alerting and kill switches
 - [ ] Concurrency/locking strategy
 - [ ] Artifact retention and immutable audit policy
-- [ ] Automated evals in CI
+- [x] Behavioral test/eval CI workflow supplied (verify a hosted run before relying on it)
 - [ ] Disaster recovery / backup policy

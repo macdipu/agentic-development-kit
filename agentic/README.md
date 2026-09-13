@@ -23,6 +23,8 @@ agentic/
 
 ## Usage
 
+Start with the [adoption guide](ADOPTION.md) for installation and upgrades, and the [runtime guide](runtime/README.md) for executable commands and capability limits. All specialists use the shared [handoff contract](skills/RESULT-CONTRACT.md).
+
 Keep `AGENTS.md` and `CLAUDE.md` at the repository root. The host project's existing root `README.md` remains the project README.
 
 The kit supports both prompt-first and document-first intake. Both are normalized into the same canonical work-item flow.
@@ -37,7 +39,7 @@ Prompt ------------------+
 FEATURE.md / CR.md -------+
 ```
 
-The harness loads existing project context first, determines affected modules, refreshes only stale or missing context, selects the required workflow and skills, and updates only relevant artifacts.
+The workflow directs agents to load context first, identify affected modules, and refresh only stale or missing slices. In local harness mode, callers register scoped files; the runtime checks their fingerprints and eligible stages. Automatic scope discovery and model execution require adapters.
 
 ---
 
@@ -434,7 +436,7 @@ Typical gates include Requirements, Architecture, Sprint/Epic planning when poli
 
 # Agent Task Timing
 
-The harness records real timing instead of asking agents to guess it:
+The platform timing target includes the fields below. The local runtime currently records start/end/failure events, durations for completed or failed adapters, and retry counts; queue and wait-time attribution require a worker/observability adapter:
 
 ```text
 queued_at
@@ -456,7 +458,7 @@ Timing may be aggregated by Task, Feature/CR, Workflow, Agent, Skill, or Project
 
 The kit includes a small provider-neutral reference runtime under `agentic/runtime/`. It turns core governance concepts into executable behavior instead of leaving them only as documentation.
 
-It includes durable local workflow state, checkpoints, explicit approvals, context freshness helpers, a dependency graph, skill/tool registries, deterministic policy checks, run timing, dry-run state, security redaction helpers, and executable eval scaffolding.
+It includes atomic workflow/checkpoint/audit persistence, explicit scope-bound approvals, ordered transitions, context hash checks, pinned skill eligibility, validated handoffs, bounded adapter attempts, and a tool gateway with capability checks and dry-run suppression. Behavioral tests and deterministic evals verify those controls. The dependency graph remains a standalone helper. Read the [capability matrix](runtime/README.md#capability-matrix) before relying on a control.
 
 ```text
 Developer Prompt / Work Document
@@ -476,4 +478,4 @@ Skill + Approved Tools + Model Adapter
 Checkpoint + Timing + Audit + Artifacts
 ```
 
-The supplied runtime is a reference implementation. Replace local SQLite and placeholder adapters with company infrastructure when moving to shared production execution.
+The supplied runtime is a local reference implementation for trusted adapters. Replacing SQLite alone does not create production isolation, authenticated approvals, or hard cancellation. Those boundaries need organization-specific infrastructure; production actions are unsupported by this runtime.

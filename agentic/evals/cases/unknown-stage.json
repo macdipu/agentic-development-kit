@@ -1,0 +1,10 @@
+{
+  "name": "unknown stage fails closed",
+  "kind": "policy",
+  "input": {
+    "stage": "IMPLEMENTATON"
+  },
+  "expected": {
+    "allowed": false
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "release requires release approval",
+  "kind": "policy",
+  "input": {
+    "stage": "RELEASE",
+    "approvals": {
+      "technical": true
+    }
+  },
+  "expected": {
+    "allowed": false
+  }
+}

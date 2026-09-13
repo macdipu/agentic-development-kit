@@ -26,6 +26,7 @@ class Orchestrator:
         self.tools = tools or ToolRegistry()
         self.policy = json.loads((self.kit_dir / 'config/platform.json').read_text())
         self.capabilities = json.loads((self.kit_dir / 'config/capabilities.json').read_text())['defaults']
+        self.loaded_config_hash = self._config_hash()
         for key in ('max_agent_retries', 'max_task_seconds', 'max_tool_calls_per_task'):
             if type(self.policy.get(key)) is not int or self.policy[key] < (0 if key == 'max_agent_retries' else 1):
                 raise ValueError('Invalid runtime budget: ' + key)
@@ -60,6 +61,8 @@ class Orchestrator:
         self.store.save_checkpoint(run, event, payload)
 
     def start(self, project, work_type, title, dry_run=False, repo=None, planning='NO_REPLAN'):
+        if self.loaded_config_hash != self._config_hash():
+            raise ValueError('Configuration changed; reload the orchestrator')
         if not project.strip() or not title.strip():
             raise ValueError('Project and title are required')
         route = workflow_route(work_type, planning, self.policy['require_uat_approval'])
@@ -85,7 +88,18 @@ class Orchestrator:
             run = self._run(run_id)
             if run.metadata['active_task']:
                 raise ValueError('Cannot refresh context during an active task')
-            run.metadata['context'] = snapshot(run.metadata['repo'], paths)
+            recorded = snapshot(run.metadata['repo'], paths)
+            previous = run.metadata.get('context')
+            if previous and previous['files'] != recorded['files'] and run.stage not in {'INTAKE', 'CONTEXT', 'IMPLEMENTATION'}:
+                raise ValueError('Scope files changed after review; reopen the run to invalidate downstream evidence')
+            if previous and previous['files'] != recorded['files'] and run.stage == 'CONTEXT':
+                run.metadata['results'].pop('CONTEXT', None)
+                self._revoke(run, ('technical', 'release', 'uat'))
+            if run.stage == 'IMPLEMENTATION' and previous and previous['files'] != recorded['files']:
+                # Refreshing changed code requires new implementation evidence.
+                run.metadata['results'].pop('IMPLEMENTATION', None)
+                self._revoke(run, ('release', 'uat'))
+            run.metadata['context'] = recorded
             self._save(run, 'CONTEXT_REFRESHED', {'paths': paths})
         return run
 
@@ -107,8 +121,10 @@ class Orchestrator:
             result = run.metadata['results'].get(run.stage, {})
             if result.get('status') not in SUCCESS_STATUSES:
                 raise ValueError('Current stage needs a ready result with evidence')
-            if run.stage == 'CONTEXT' or next_stage not in {'CONTEXT', 'COMPLETED'}:
+            if next_stage != 'CONTEXT':
                 self._fresh(run)
+            if run.stage == 'PREVIEW' and result.get('status') != 'PREVIEW_READY':
+                raise ValueError('Preview completion requires visual verification with PREVIEW_READY')
             approvals = {gate: self.store.has_approval(run_id, gate) for gate in ('technical', 'release', 'uat')}
             decision = evaluate(next_stage, approvals)
             if not decision.allowed:
@@ -126,7 +142,7 @@ class Orchestrator:
         with self.store.transaction():
             run = self._run(run_id)
             self._current_config(run)
-            if run.metadata['active_task']:
+            if run.metadata['active_task'] and decision == 'APPROVED':
                 raise ValueError('Cannot approve while a task is active')
             prerequisite = {'technical': 'CONTEXT' if run.work_type == 'existing_task' else 'TECHNICAL', 'release': 'QA', 'uat': 'UAT'}.get(gate)
             if prerequisite not in run.metadata['route']:
@@ -144,6 +160,8 @@ class Orchestrator:
             raise ValueError('Reopen requires a scope/rework reason')
         with self.store.transaction():
             run = self._run(run_id)
+            if run.metadata['results'].get('INTAKE', {}).get('status') not in SUCCESS_STATUSES:
+                raise ValueError('Complete intake before reopening scope')
             if run.metadata['active_task']:
                 raise ValueError('Task is still active')
             # Retain intake, invalidate downstream evidence and all prior approvals.
@@ -186,10 +204,21 @@ class Orchestrator:
         task = run.metadata['active_task']
         if not task or task['id'] != task_id:
             raise ValueError('Task is no longer active')
+        item = self.registry.discover().get(task['skill'])
+        if not item or item['revision'] != run.metadata['skill_pins'].get(task['skill']):
+            raise ValueError('Pinned skill content changed')
+        decision = evaluate(run.stage, {gate: self.store.has_approval(run_id, gate) for gate in ('technical', 'release')})
+        if not decision.allowed:
+            raise PermissionError('; '.join(decision.reasons))
         elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(task['started_at'])).total_seconds()
         if elapsed >= self.policy['max_task_seconds']:
             raise TimeoutError('Task execution budget exhausted')
         return run, task
+
+    def _revoke(self, run, gates):
+        for gate in gates:
+            if self.store.has_approval(run.run_id, gate):
+                self.store.approval(run.run_id, gate, 'runtime', 'REVOKED', 'Supporting evidence changed', now(), run.metadata['scope_revision'])
 
     def execute(self, run_id, skill, handler):
         """Run a trusted adapter(context, call_tool) and validate its handoff."""
@@ -215,6 +244,7 @@ class Orchestrator:
             run.metadata['attempts'][key] = attempts + 1
             task = {'id': uuid.uuid4().hex, 'skill': skill, 'started_at': now(), 'tool_calls': 0}
             run.metadata['active_task'] = task
+            self._revoke(run, {'CONTEXT': ('technical', 'release', 'uat'), 'TECHNICAL': ('technical', 'release', 'uat'), 'QA': ('release', 'uat'), 'UAT': ('uat', 'release')}.get(run.stage, ()))
             run.metadata['results'].pop(run.stage, None)
             run.status = 'RUNNING'
             self.store.timing(run_id, task['id'], 'STARTED', task['started_at'], {'skill': skill, 'retry_count': attempts})
@@ -222,6 +252,8 @@ class Orchestrator:
         try:
             context = {'run': redact_value(run.to_dict()), 'skill_path': item['path'], 'instructions': Path(item['path']).read_text(), 'context_files': {}}
             for name in run.metadata.get('context', {}).get('files', {}):
+                # Recheck containment in case a path was replaced with a symlink.
+                snapshot(run.metadata['repo'], [name], include_revision=False)
                 context['context_files'][name] = redact_value((Path(run.metadata['repo']) / name).read_text(encoding='utf-8'))
             result = handler(context, lambda name, arguments=None, idempotency_key=None: self.call_tool(run_id, task['id'], name, arguments or {}, idempotency_key))
             result = redact_value(validate_result(result))
@@ -233,6 +265,9 @@ class Orchestrator:
                     raise ValueError('Skill changed during execution')
                 current.metadata['active_task'] = None
                 current.metadata['results'][current.stage] = result
+                if current.stage == 'IMPLEMENTATION':
+                    # Existing scope files are fingerprinted after this implementation attempt.
+                    current.metadata['context'] = snapshot(current.metadata['repo'], list(current.metadata['context']['files']))
                 current.status = 'RUNNING' if result['status'] in SUCCESS_STATUSES else 'BLOCKED'
                 duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
                 self.store.timing(run_id, task['id'], 'COMPLETED', now(), {'duration_ms': duration, 'result_status': result['status']})
@@ -251,6 +286,17 @@ class Orchestrator:
             raise
 
     def call_tool(self, run_id, task_id, name, arguments, idempotency_key=None):
+        try:
+            return self._call_tool(run_id, task_id, name, arguments, idempotency_key)
+        except BaseException as exc:
+            self.store.audit(run_id, 'TOOL_ERROR', {'name': name, 'error': str(exc)}, now())
+            raise
+
+    def _call_tool(self, run_id, task_id, name, arguments, idempotency_key=None):
+        if not isinstance(arguments, dict) or any(not isinstance(key, str) for key in arguments):
+            raise ValueError('Tool arguments must be an object with string keys')
+        if idempotency_key is not None and (not isinstance(idempotency_key, str) or not idempotency_key.strip()):
+            raise ValueError('Idempotency key must be a nonempty string')
         # Reserve before invoking: a crash leaves an unknown outcome, never an automatic replay.
         with self.store.transaction():
             run, task = self._active(run_id, task_id)
@@ -265,7 +311,8 @@ class Orchestrator:
             digest = hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False).encode()).hexdigest()
             call_key = f"{run.metadata['scope_revision']}:{idempotency_key}" if idempotency_key else uuid.uuid4().hex
             if tool['side_effecting'] and run.dry_run:
-                self.store.audit(run_id, 'TOOL_DRY_RUN', {'name': name}, now())
+                task['tool_calls'] += 1
+                self._save(run, 'TOOL_DRY_RUN', {'name': name})
                 return {'dry_run': True, 'tool': name, 'invoked': False}
             previous = self.store.conn.execute('SELECT * FROM tool_calls WHERE run_id=? AND call_key=?', (run_id, call_key)).fetchone()
             if previous:

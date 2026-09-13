@@ -1,6 +1,6 @@
 ---
 name: work-item-level-classifier
-description: Classify incoming or analyzed software work into the minimum useful planning hierarchy: EPIC_STORY_TASK, STORY_TASK, TASK_ONLY, or EXECUTE_EXISTING_TASK. Use after requirements or change impact are understood and before sprint handling or task decomposition, for features, change requests, bugs, hotfixes, and technical changes.
+description: Classify incoming or analyzed software work into the minimum useful planning hierarchy choices including EPIC_STORY_TASK, STORY_TASK, TASK_ONLY, or EXECUTE_EXISTING_TASK. Use after requirements or change impact are understood and before sprint handling or task decomposition, for features, change requests, bugs, hotfixes, and technical changes.
 ---
 
 # Work Item Level Classifier
