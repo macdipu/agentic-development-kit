@@ -2,10 +2,23 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
             "command": "python3 agentic/runtime/hooks/session_start_check.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 agentic/runtime/hooks/precompact_checkpoint.py",
             "timeout": 15
           }
         ]

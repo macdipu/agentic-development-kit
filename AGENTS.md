@@ -4,19 +4,20 @@ This file is the canonical repository-level instruction entrypoint for agentic d
 
 ## Core behavior
 
-1. On session start, check for a midflight task before doing anything else (enforced by the `SessionStart` hook, `agentic/runtime/hooks/session_start_check.py`): if `agentic/runtime/state/active-task.json` exists, or the run DB has a run with status `RUNNING`/`BLOCKED`, resume it — do not start a new run for that work item. Only start the next work item once nothing is midflight.
-2. Treat the current repository as the source project.
-3. Use `agentic/project-context/` before performing broad discovery.
-4. If context is available and sufficiently fresh, reuse it.
-5. If context is stale or missing, refresh only the affected module or feature scope.
-6. Do not audit the whole repository for every task.
-7. Prefer existing implementations, shared components, and established architectural patterns.
-8. Never invent missing business rules.
-9. Never infer human approval.
-10. Route work through the appropriate workflow in `agentic/workflows/`.
-11. Use skills under `agentic/skills/` as reusable specialist workflows.
-12. Record agent start/end timing and relevant task telemetry through the harness.
-13. Preserve traceability from request -> requirements -> design -> tasks -> implementation -> QA -> release.
+1. On session start, check for a midflight task before doing anything else (enforced by the `SessionStart` hook, `agentic/runtime/hooks/session_start_check.py`): if `agentic/runtime/state/active-task.json` exists, or the run DB has a run with status `RUNNING`/`BLOCKED`, resume it — do not start a new run for that work item. Only start the next work item once nothing is midflight. On a CLI without hook support, run that script yourself as the first action of the session.
+2. When compaction is imminent (surfaced by the `PreCompact` hook, `agentic/runtime/hooks/precompact_checkpoint.py`, or on your own judgment if your CLI has no hook support), update every doc this session touched — work-item status, README/AGENTS notes, any tracked plan — before the turn ends, and scope any remaining work down to the smallest subtask that can actually finish rather than starting something large.
+3. Treat the current repository as the source project.
+4. Use `agentic/project-context/` before performing broad discovery.
+5. If context is available and sufficiently fresh, reuse it.
+6. If context is stale or missing, refresh only the affected module or feature scope.
+7. Do not audit the whole repository for every task.
+8. Prefer existing implementations, shared components, and established architectural patterns.
+9. Never invent missing business rules.
+10. Never infer human approval.
+11. Route work through the appropriate workflow in `agentic/workflows/`.
+12. Use skills under `agentic/skills/` as reusable specialist workflows.
+13. Record agent start/end timing and relevant task telemetry through the harness.
+14. Preserve traceability from request -> requirements -> design -> tasks -> implementation -> QA -> release.
 
 ## Input modes
 

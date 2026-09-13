@@ -151,6 +151,7 @@ def verify(target_root):
     checks.append(('AGENTS.md present', (target_root / 'AGENTS.md').is_file()))
     hook_wired = False
     session_start_wired = False
+    precompact_wired = False
     settings_path = target_root / '.claude/settings.json'
     if settings_path.exists():
         try:
@@ -161,13 +162,21 @@ def verify(target_root):
                 for entry in settings.get('hooks', {}).get('SessionStart', [])
                 for h in entry.get('hooks', [])
             )
+            precompact_wired = any(
+                'precompact_checkpoint.py' in h.get('command', '')
+                for entry in settings.get('hooks', {}).get('PreCompact', [])
+                for h in entry.get('hooks', [])
+            )
         except (ValueError, OSError):
             hook_wired = False
             session_start_wired = False
+            precompact_wired = False
     checks.append(('PreToolUse gate hook wired in .claude/settings.json', hook_wired))
     checks.append(('gate hook script present', (target_kit_dir / 'runtime/hooks/pretooluse_gate.py').is_file()))
     checks.append(('SessionStart midflight-check hook wired in .claude/settings.json', session_start_wired))
     checks.append(('midflight-check script present', (target_kit_dir / 'runtime/hooks/session_start_check.py').is_file()))
+    checks.append(('PreCompact checkpoint hook wired in .claude/settings.json', precompact_wired))
+    checks.append(('precompact-checkpoint script present', (target_kit_dir / 'runtime/hooks/precompact_checkpoint.py').is_file()))
     checks.append(('runtime db initialized', (target_kit_dir / 'runtime/state/agentic.db').is_file()))
     checks.append(('/agentic-init skill available for re-runs', (target_root / '.claude/skills/agentic-init/SKILL.md').is_file()))
     log('')
