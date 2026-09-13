@@ -16,7 +16,7 @@ Steps 1-6 below can be run in one shot with `python3 agentic/scripts/init_projec
 5. Merge the kit's local state/cache ignore patterns into the host `.gitignore`. Preserve existing ignore rules. Do not commit workflow databases, private logs, screenshots containing private data, or credentials.
 6. Regenerate the manifests with `python3 agentic/scripts/validate_structure.py --write-manifests` to reflect the host's optional root files, then run validation below. For local harness mode, complete the isolated demo, then submit one real bounded task using the [runtime guide](runtime/README.md).
 
-The root README and `.github/workflows/validate-kit.yml` belong to this kit repository. For a host project, merge their relevant links/check command into its existing README and CI instead of replacing them.
+The root README belongs to this kit repository. For a host project, merge its relevant links/check command into its existing README instead of replacing it.
 
 ## Validate and extend
 
@@ -24,7 +24,7 @@ The root README and `.github/workflows/validate-kit.yml` belong to this kit repo
 sh agentic/scripts/validate-kit.sh
 ```
 
-Validation checks Python syntax, JSON, skill names and local links, manifest consistency, and an end-to-end runtime-demo dry run. GitHub Actions runs the same command on Python 3.10 and 3.13. Action usage follows the official [checkout](https://github.com/actions/checkout) and [setup-python](https://github.com/actions/setup-python) documentation. Hosted CI execution still needs to run after publishing the change. There is no automated behavioral test suite or eval harness for the runtime engine; verify changes to `agentic_runtime` manually.
+Validation checks Python syntax, JSON, skill names and local links, manifest consistency, and an end-to-end runtime-demo dry run. Run it manually after changes; there is no CI workflow and no automated behavioral test suite or eval harness for the runtime engine — verify changes to `agentic_runtime` manually.
 
 To add a specialist:
 

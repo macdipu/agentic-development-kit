@@ -15,7 +15,7 @@ from agentic_runtime.registry import SkillRegistry
 
 def packaged_files():
     root_files = ['AGENTS.md', 'CLAUDE.md']
-    root_files += [name for name in ['README.md', '.gitignore', '.github/workflows/validate-kit.yml'] if (ROOT / name).is_file()]
+    root_files += [name for name in ['README.md', '.gitignore'] if (ROOT / name).is_file()]
     files = []
     for path in KIT.rglob('*'):
         if not path.is_file() or path.name == '.DS_Store' or path.suffix in {'.pyc', '.pyo'}:
