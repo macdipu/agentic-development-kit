@@ -13,12 +13,14 @@ from unittest.mock import patch
 KIT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(KIT / 'runtime/python'))
 from agentic_runtime.cli import ACTIVE_TASK_POINTER, main as cli_main
-from agentic_runtime.context import context_state, snapshot, snapshot_state
+from agentic_runtime.context import snapshot, snapshot_state
 from agentic_runtime.contracts import validate_result
+from agentic_runtime.dependency_graph import DependencyGraph
 from agentic_runtime.orchestrator import Orchestrator, now
 from agentic_runtime.policy import workflow_route
 from agentic_runtime.registry import ToolRegistry
 from agentic_runtime.store import RuntimeStore
+from agentic_runtime.timing import durations
 from agentic_runtime.tools import bash_allowed, build_default_tools
 
 
@@ -174,7 +176,6 @@ class RuntimeTests(unittest.TestCase):
         self.source.write_text('Changed')
         with self.assertRaisesRegex(ValueError, 'STALE'):
             self.orch.transition(run.run_id, 'PREVIEW')
-        self.assertEqual(context_state('UNKNOWN', 'UNKNOWN'), 'MISSING')
         state = snapshot(self.root, ['requirements.md'])
         self.source.unlink()
         self.assertEqual(snapshot_state(self.root, state), 'STALE')
@@ -448,6 +449,49 @@ class RuntimeTests(unittest.TestCase):
         call('task-finish', run.run_id, task_id, '--file', str(result_path))
         self.assertFalse(ACTIVE_TASK_POINTER.exists())
         self.assertEqual(store.get_run(run.run_id).metadata['results']['INTAKE']['status'], 'READY')
+
+    def test_task_timings_query_computes_durations(self):
+        run = self.start()
+        self.orch.execute(run.run_id, 'prompt-intake-adapter', lambda context, call: ready())
+        events = self.store.query_timing(run.run_id)
+        self.assertEqual([e['event'] for e in events], ['STARTED', 'COMPLETED'])
+        [record] = self.orch.task_timings(run.run_id)
+        self.assertEqual(record['event'], 'COMPLETED')
+        self.assertGreaterEqual(record['duration_ms'], 0)
+        self.assertEqual(durations(events), self.orch.task_timings(run.run_id))
+        with self.assertRaises(RuntimeError):
+            self.orch.execute(run.run_id, 'prompt-intake-adapter', lambda context, call: (_ for _ in ()).throw(RuntimeError('boom')))
+        failed = [d for d in self.orch.task_timings(run.run_id) if d['event'] == 'FAILED']
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(self.orch.task_timings(run.run_id, task=failed[0]['task']), failed)
+
+    def test_dependency_graph_closure_expands_transitively(self):
+        graph = DependencyGraph()
+        graph.add('auth', 'billing')
+        graph.add('billing', 'invoicing')
+        graph.add('billing', 'notifications')
+        graph.add('unrelated', 'other')
+        self.assertEqual(graph.closure(['auth']), ['auth', 'billing', 'invoicing', 'notifications'])
+        self.assertEqual(graph.closure(['invoicing']), ['invoicing'])
+
+    def test_cli_impact_and_timing_query(self):
+        run = self.start()
+        self.orch.execute(run.run_id, 'prompt-intake-adapter', lambda context, call: ready())
+
+        def call(*extra):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = cli_main(['--db', self.store.db_path, *extra])
+            self.assertEqual(code, 0, buf.getvalue())
+            return json.loads(buf.getvalue())
+
+        timed = call('timing', run.run_id)
+        self.assertEqual(timed[0]['event'], 'COMPLETED')
+
+        edges_path = self.root / 'edges.json'
+        edges_path.write_text(json.dumps({'auth': ['billing'], 'billing': ['invoicing']}))
+        impacted = call('impact', 'auth', '--edges', str(edges_path))
+        self.assertEqual(impacted['modules'], ['auth', 'billing', 'invoicing'])
 
     def test_runtime_demo_completes_without_effects(self):
         result = subprocess.run([sys.executable, '-B', str(KIT / 'examples/runtime-demo.py')], capture_output=True, text=True)

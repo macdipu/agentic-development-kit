@@ -7,6 +7,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+from agentic_runtime.dependency_graph import DependencyGraph
 from agentic_runtime.orchestrator import Orchestrator
 from agentic_runtime.policy import PLANNING, STAGES, WORK_TYPES
 from agentic_runtime.store import RuntimeStore
@@ -57,6 +58,9 @@ def main(argv=None):
     result.add_argument('run_id')
     result.add_argument('--skill', required=True)
     result.add_argument('--file', type=Path, required=True)
+    timing = sub.add_parser('timing', help='Query recorded task timing/duration events for a run')
+    timing.add_argument('run_id')
+    timing.add_argument('--task', help='Filter to one task id')
     for name in ('reopen', 'recover'):
         command = sub.add_parser(name)
         command.add_argument('run_id')
@@ -78,6 +82,9 @@ def main(argv=None):
     task_fail.add_argument('run_id')
     task_fail.add_argument('task_id')
     task_fail.add_argument('--error', required=True)
+    impact = sub.add_parser('impact', help='Query the transitive dependency closure of changed modules')
+    impact.add_argument('modules', nargs='+', help='Changed module names to expand')
+    impact.add_argument('--edges', type=Path, required=True, help='JSON file mapping module name to a list of the modules that depend on it')
     guard = sub.add_parser('guard', help='Permission check for a native coding-agent tool call (used by the PreToolUse hook)')
     guard.add_argument('run_id')
     guard.add_argument('task_id')
@@ -106,6 +113,8 @@ def main(argv=None):
             output = orch.approve(args.run_id, args.gate, args.by, args.decision, args.comment)
         elif args.cmd == 'context':
             output = orch.record_context(args.run_id, args.paths)
+        elif args.cmd == 'timing':
+            output = orch.task_timings(args.run_id, args.task)
         elif args.cmd == 'result':
             submitted = json.loads(args.file.read_text())
             output = orch.execute(args.run_id, args.skill, lambda context, call_tool: submitted)
@@ -133,6 +142,15 @@ def main(argv=None):
             output = {'task_id': args.task_id, 'failed': True}
         elif args.cmd == 'guard':
             output = orch.guard(args.run_id, args.task_id, args.tool, args.command)
+        elif args.cmd == 'impact':
+            edges = json.loads(args.edges.read_text())
+            if not isinstance(edges, dict) or not all(isinstance(v, list) for v in edges.values()):
+                raise ValueError('Edges file must map module name to a list of dependent module names')
+            graph = DependencyGraph()
+            for module, dependents in edges.items():
+                for dependent in dependents:
+                    graph.add(module, dependent)
+            output = {'modules': graph.closure(args.modules)}
         else:
             output = orch.cancel(args.run_id)
             _clear_active_task()

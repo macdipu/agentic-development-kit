@@ -31,8 +31,7 @@ def workflow_route(work_type, planning="NO_REPLAN", require_uat=False):
     return route + ["IMPLEMENTATION", "REVIEW", "QA"] + (["UAT"] if require_uat else []) + ["RELEASE", "COMPLETED"]
 
 
-def evaluate(stage, approvals, direct_production_write=False):
-    # Production execution is intentionally unsupported in this local runtime.
+def evaluate(stage, approvals):
     if stage not in STAGES:
         return PolicyDecision(False, ["Unknown or unsupported stage: " + stage])
     gate = REQUIRED_GATES.get(stage)

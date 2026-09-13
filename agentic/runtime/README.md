@@ -18,9 +18,9 @@ This Python 3.10+ standard-library runtime governs local workflow state and trus
 | Budgets | Attempts per scope/stage/skill, tool calls per task, elapsed task deadline | Cooperative checks before/after calls; cannot kill a blocked process |
 | Cancellation | Terminal run, no new calls or accepted late result | Cannot undo an external effect or terminate an arbitrary adapter |
 | Recovery | Explicit interruption acknowledgment; failed/unknown tool outcomes are not replayed | Operator must stop the old worker and reconcile external effects |
-| Timing | Start/end/failure/cancel/interruption events, duration for normal/failed adapters, retry count | Queue, approval-wait, active-vs-tool time attribution are not implemented |
+| Timing | Start/end/failure/cancel/interruption events, duration for normal/failed adapters, retry count; `timing RUN_ID [--task]` queries recorded events and computed durations | Queue, approval-wait, active-vs-tool time attribution are not implemented |
 | Redaction | Best-effort structured field and string masking for context, results, and error/audit payloads | Not comprehensive DLP; tool arguments reach the trusted handler unchanged |
-| Dependency graph | Standalone closure helper | Not connected to automatic routing or discovery |
+| Dependency closure | `impact MODULE... --edges edges.json` expands a transitive dependency closure from a caller-supplied module graph | Not connected to automatic dependency discovery; edges must be supplied explicitly |
 | Production | No production stage or L7 tool registration | External production integration is intentionally unsupported |
 
 The caller, adapter code, tool registrations, configuration, and database form one local trust boundary. Direct Python, shell, model-provider, or database access outside these APIs bypasses the controls. Use process isolation, authenticated approval services, least-privilege credentials, and durable infrastructure before shared autonomous execution.
@@ -50,6 +50,16 @@ python3 agentic/runtime/python/agentic_runtime/cli.py transition RUN_ID COMPLETE
 ```
 
 `result` validates and records an already-produced [handoff envelope](../skills/RESULT-CONTRACT.md). It does not execute the selected specialist or independently inspect its evidence. Its timing measures submission processing, not the earlier agent work. Use the adapter API below to measure execution and govern tools. The preview's result must be `PREVIEW_READY`, with visual evidence, before completion.
+
+Query recorded task durations, or expand a caller-supplied module dependency closure, at any time (including on a completed run):
+
+```sh
+python3 agentic/runtime/python/agentic_runtime/cli.py timing RUN_ID
+python3 agentic/runtime/python/agentic_runtime/cli.py timing RUN_ID --task TASK_ID
+python3 agentic/runtime/python/agentic_runtime/cli.py impact auth billing --edges path/to/edges.json
+```
+
+`edges.json` maps a module name to the list of modules that depend on it (e.g. `{"auth": ["billing"], "billing": ["invoicing"]}`); `impact` walks that graph from the given modules and returns the full affected set. The runtime does not discover these edges itself — supply them from `module-context.yaml`'s `dependencies` field or another source of truth.
 
 Default state lives under `agentic/runtime/state/`. Put `--db /path/to/state.sqlite3` before the subcommand to select another database. Invalid input and denied transitions return a nonzero exit code and leave the previous stage intact. `BLOCKED` results can be retried within budget; unknown stage strings are rejected.
 

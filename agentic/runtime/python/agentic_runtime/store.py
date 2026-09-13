@@ -106,6 +106,19 @@ class RuntimeStore:
     def timing(self, run_id, task, event, ts, metadata=None):
         self.conn.execute("INSERT INTO timing_events(run_id,task,event,ts,metadata_json) VALUES(?,?,?,?,?)", (run_id,task,event,ts,json.dumps(redact_value(metadata or {})))); self._commit()
 
+    def query_timing(self, run_id=None, task=None) -> List[Dict]:
+        query = "SELECT run_id, task, event, ts, metadata_json FROM timing_events"
+        clauses, params = [], []
+        if run_id is not None:
+            clauses.append("run_id=?"); params.append(run_id)
+        if task is not None:
+            clauses.append("task=?"); params.append(task)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY id"
+        rows = self.conn.execute(query, params).fetchall()
+        return [{"run_id": r["run_id"], "task": r["task"], "event": r["event"], "ts": r["ts"], "metadata": json.loads(r["metadata_json"])} for r in rows]
+
     def _commit(self):
         if self._transaction_depth == 0:
             self.conn.commit()

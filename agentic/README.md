@@ -13,7 +13,6 @@ agentic/
 ├── project-context/
 ├── workflows/
 ├── policies/
-├── schemas/
 ├── templates/
 ├── config/
 ├── evals/

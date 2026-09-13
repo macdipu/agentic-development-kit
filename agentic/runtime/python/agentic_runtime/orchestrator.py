@@ -10,11 +10,8 @@ from .models import WorkflowRun
 from .policy import evaluate, workflow_route
 from .registry import SkillRegistry, ToolRegistry
 from .security import redact_value
+from .timing import durations, now
 from .tools import NATIVE_TOOL_CAPABILITY, bash_allowed
-
-
-def now():
-    return datetime.now(timezone.utc).isoformat()
 
 
 class Orchestrator:
@@ -185,6 +182,11 @@ class Orchestrator:
             self._save(run, 'RUN_CANCELLED')
         return run
 
+    def task_timings(self, run_id, task=None):
+        """Query recorded timing events for a run (or one task) and compute elapsed durations."""
+        self._run(run_id, allow_terminal=True)
+        return durations(self.store.query_timing(run_id, task))
+
     def recover(self, run_id, reason):
         """Operator acknowledges an interrupted adapter; never replay side effects."""
         if not reason.strip():
@@ -255,7 +257,7 @@ class Orchestrator:
             context = {'run': redact_value(run.to_dict()), 'skill_path': item['path'], 'instructions': Path(item['path']).read_text(), 'context_files': {}}
             for name in run.metadata.get('context', {}).get('files', {}):
                 # Recheck containment in case a path was replaced with a symlink.
-                snapshot(run.metadata['repo'], [name], include_revision=False)
+                snapshot(run.metadata['repo'], [name])
                 context['context_files'][name] = redact_value((Path(run.metadata['repo']) / name).read_text(encoding='utf-8'))
         except BaseException as exc:
             self.fail_task(run_id, task['id'], exc)
