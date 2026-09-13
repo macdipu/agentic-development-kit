@@ -143,7 +143,6 @@ Read the [upgrade notes](../ADOPTION.md#upgrade-an-existing-installation) before
 
 ```sh
 sh agentic/scripts/validate-kit.sh
-python3 agentic/examples/runtime-demo.py
 ```
 
-Behavioral tests cover routes/gates, atomic rollback, context drift, pins, retry budgets, cancellation, timing, capability denial, dry runs, and idempotency. Eval cases call runtime functions and compare actual output with expected output; empty, malformed, unknown, or incorrect cases fail. These are deterministic runtime checks, not evaluations of model quality or live device compatibility.
+Checks kit packaging (manifest, skill registry/capabilities consistency, markdown links) and runs `examples/runtime-demo.py` as an end-to-end dry-run smoke check. There is no automated behavioral test suite or eval harness for the runtime engine itself — routes/gates, retries, timing, capability denial, and idempotency are exercised only by this smoke run, not by dedicated tests. Verify a change to `agentic_runtime` manually before relying on it.

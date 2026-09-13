@@ -22,17 +22,16 @@ The root README and `.github/workflows/validate-kit.yml` belong to this kit repo
 
 ```sh
 sh agentic/scripts/validate-kit.sh
-python3 agentic/examples/runtime-demo.py
 ```
 
-Validation checks Python syntax, JSON, skill names and local links, manifest consistency, behavioral runtime tests, and deterministic eval cases. GitHub Actions runs the same command on Python 3.10 and 3.13. Action usage follows the official [checkout](https://github.com/actions/checkout) and [setup-python](https://github.com/actions/setup-python) documentation. Hosted CI execution still needs to run after publishing the change.
+Validation checks Python syntax, JSON, skill names and local links, manifest consistency, and an end-to-end runtime-demo dry run. GitHub Actions runs the same command on Python 3.10 and 3.13. Action usage follows the official [checkout](https://github.com/actions/checkout) and [setup-python](https://github.com/actions/setup-python) documentation. Hosted CI execution still needs to run after publishing the change. There is no automated behavioral test suite or eval harness for the runtime engine; verify changes to `agentic_runtime` manually.
 
 To add a specialist:
 
 1. Add `agentic/skills/<name>/SKILL.md` with a discriminating description, inputs, procedure, deliverable, and readiness boundary. Link the shared [handoff contract](skills/RESULT-CONTRACT.md).
 2. Add its allowed stages to `config/skill-registry.json` and its capability ceiling to `config/capabilities.json`. Missing eligibility or capability entries deny execution.
 3. Update the catalog and appropriate workflow routing. Keep platform-only command details in linked references.
-4. Regenerate the manifests with `python3 agentic/scripts/validate_structure.py --write-manifests`, then run validation. Add behavioral tests if the specialist introduces runtime behavior; do not turn wording checks into behavioral evidence.
+4. Regenerate the manifests with `python3 agentic/scripts/validate_structure.py --write-manifests`, then run validation.
 
 ## Upgrade an existing installation
 

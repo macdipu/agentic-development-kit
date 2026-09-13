@@ -15,7 +15,6 @@ agentic/
 ├── policies/
 ├── templates/
 ├── config/
-├── evals/
 ├── platform/
 └── examples/
 ```
@@ -457,7 +456,7 @@ Timing may be aggregated by Task, Feature/CR, Workflow, Agent, Skill, or Project
 
 The kit includes a small provider-neutral reference runtime under `agentic/runtime/`. It turns core governance concepts into executable behavior instead of leaving them only as documentation.
 
-It includes atomic workflow/checkpoint/audit persistence, explicit scope-bound approvals, ordered transitions, context hash checks, pinned skill eligibility, validated handoffs, bounded adapter attempts, and a tool gateway with capability checks and dry-run suppression. Behavioral tests and deterministic evals verify those controls. The dependency graph remains a standalone helper. Read the [capability matrix](runtime/README.md#capability-matrix) before relying on a control.
+It includes atomic workflow/checkpoint/audit persistence, explicit scope-bound approvals, ordered transitions, context hash checks, pinned skill eligibility, validated handoffs, bounded adapter attempts, and a tool gateway with capability checks and dry-run suppression. Read the [capability matrix](runtime/README.md#capability-matrix) before relying on a control.
 
 ```text
 Developer Prompt / Work Document

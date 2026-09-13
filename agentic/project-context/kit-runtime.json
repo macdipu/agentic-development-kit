@@ -4,36 +4,34 @@
   "confidence": "HIGH",
   "scope": "Local trusted-adapter runtime and its validation/adoption contracts",
   "evidence": [
-    "agentic/work-items/TASK-KIT-001.md",
-    "agentic/runtime/tests/test_runtime.py"
+    "agentic/work-items/TASK-KIT-001.md"
   ],
   "freshness": {
-    "revision": "cba169f29276962ed170e8f62e0af2173e82e21d",
+    "revision": "d2b4e064afb598fff49e3a65587b816d62ed9a1b",
     "files": {
-      "agentic/ADOPTION.md": "d9dcf75f83a9502bca97814a1b922edb507ea2eb78714983f0e7ae072cb09824",
+      "agentic/ADOPTION.md": "d97a51cd7a9f8feb8f845872c34acbb332f4027a50f4bfd29c4b0a6d82a6435a",
       "agentic/config/capabilities.json": "735e38ae6e4c7833d82609819957f69b233fa5122533dadd9be2c80fe03d8356",
       "agentic/config/platform.json": "b0e71e141e5c4c73551f62c3f73107c4d369395afee51122c7bb3216dbbc357e",
       "agentic/config/skill-registry.json": "dc9068c8d9275848403cbb328c747ffdaf7efddcffce00c6ccee618d97684878",
-      "agentic/evals/run_evals.py": "c0d8770fa41915d77c4eaa3efb53a8d07ad5c518385ce0f91078a1ef1c41ce7d",
-      "agentic/runtime/README.md": "6c1242162753a094532976b26fb30bae0ae6ed836f5a11561cfa68131ff4593c",
+      "agentic/runtime/README.md": "7d6a8df048bbe94493c78e4625062bea526cf0981774532f778eb7097b39ac95",
       "agentic/runtime/python/agentic_runtime/__init__.py": "bb4877844a671ad619b55afb061c0c48467e0f043ae3058f26c797e778b20558",
-      "agentic/runtime/python/agentic_runtime/cli.py": "2be5a70cc24c60044b235b16ac730ea213e511cbf2177b492df1d5f53b657e80",
-      "agentic/runtime/python/agentic_runtime/context.py": "86c8228f843df1cac4e0458300e9c79da61b72ebb8bb5bf35dfd672a819dbe03",
+      "agentic/runtime/python/agentic_runtime/cli.py": "6cb470ad3e203acd55694831ad1d3bffe4d73236fd372f79366ee11425591cf7",
+      "agentic/runtime/python/agentic_runtime/context.py": "a3bf85c26f751659a14c4025773bead40fae335e887e8a602f34d90074abf5d7",
       "agentic/runtime/python/agentic_runtime/contracts.py": "8d96d75cfdc041b51059fa8664d279fc8c90b749a2399c047528e3a380e16b15",
       "agentic/runtime/python/agentic_runtime/dependency_graph.py": "fb7c1a7c752433900997d6040c3a4e333f385eb4f6e116ba1f0d39abe24019e3",
       "agentic/runtime/python/agentic_runtime/models.py": "198ae417c058f0fac481dde1b7b2edc83852b85b30d18ef5cfd0f4e07f23e3d1",
-      "agentic/runtime/python/agentic_runtime/orchestrator.py": "961bbb5620021a45b39f7060e74ac39c005ebace597cf4d0c73a3381a163a2b5",
-      "agentic/runtime/python/agentic_runtime/policy.py": "fdde51a668d52c7392df7b8eb72fafc71899afe866c13a597dcb71ecbda460c6",
+      "agentic/runtime/python/agentic_runtime/orchestrator.py": "1f8005128d27875471c0304e629b6cac597fdfee1b9e480d4db1a9f364b6a043",
+      "agentic/runtime/python/agentic_runtime/policy.py": "eedc7da63f1d3c4e3e48733e05739e29aa808270041ced5ae7f649964a0379d1",
       "agentic/runtime/python/agentic_runtime/registry.py": "c9bb4cff56e4ef6369ba3cd8662fd6b09adad022079c74f9db12f54783c3f06d",
       "agentic/runtime/python/agentic_runtime/security.py": "0ac8c1413cb60f57c7d75f6245239007482043b3f00085d17a72024bf04f1f28",
-      "agentic/runtime/python/agentic_runtime/store.py": "bc3b428c16095f8b0a0f04add537785ba15924e245fcc3befdb7be557609ef4b",
-      "agentic/runtime/python/agentic_runtime/timing.py": "0c1f9283bed4923b8f67d7526836cb2a060a6e1127667d126913a43d2ed6fead",
-      "agentic/runtime/tests/test_runtime.py": "4d88f2e75b16d3cde652591ce5683422e1eb56b4cb57e2b6052a360eebc5eb40"
+      "agentic/runtime/python/agentic_runtime/store.py": "346bf1349b512e08579f638b74c9ad65d0cbb71b65fe7dcdaca797dfc10cd39e",
+      "agentic/runtime/python/agentic_runtime/timing.py": "3ff9e5c72a680b7873f2821f280b239ee86a1364016857ceeb65eb93a556eb27"
     }
   },
   "limits": [
     "Caller selects sufficient source files",
     "No model adapter, authenticated approvals, OS sandbox, or production execution",
+    "No automated behavioral test suite or eval harness for the runtime engine; verify changes manually",
     "This context describes the kit repository; replace it when adopting into a host project"
   ]
 }
