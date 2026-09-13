@@ -12,13 +12,14 @@ from unittest.mock import patch
 
 KIT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(KIT / 'runtime/python'))
-from agentic_runtime.cli import main as cli_main
+from agentic_runtime.cli import ACTIVE_TASK_POINTER, main as cli_main
 from agentic_runtime.context import context_state, snapshot, snapshot_state
 from agentic_runtime.contracts import validate_result
 from agentic_runtime.orchestrator import Orchestrator, now
 from agentic_runtime.policy import workflow_route
 from agentic_runtime.registry import ToolRegistry
 from agentic_runtime.store import RuntimeStore
+from agentic_runtime.tools import bash_allowed, build_default_tools
 
 
 def ready(status='READY'):
@@ -380,6 +381,73 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn('got', wrong.stdout)
         path.write_text(json.dumps({'name':'Unknown', 'kind':'unknown', 'input':{}, 'expected':{}}))
         self.assertEqual(evaluate().returncode, 1)
+
+    def test_guard_enforces_capability_ceiling_and_bash_allowlist(self):
+        run = self.technical_ready()
+        self.orch.approve(run.run_id, 'technical', 'test-fixture')
+        self.orch.transition(run.run_id, 'IMPLEMENTATION')
+        task, _context = self.orch.start_task(run.run_id, 'implementation-agent')
+        self.assertEqual(self.orch.guard(run.run_id, task['id'], 'Write')['allowed'], True)
+        with self.assertRaisesRegex(PermissionError, 'capability denied'):
+            self.orch.guard(run.run_id, task['id'], 'Bash', 'git status')
+        self.orch.fail_task(run.run_id, task['id'], 'test cleanup')
+
+    def test_guard_rejects_unrecognized_tool_and_missing_active_task(self):
+        run = self.start()
+        with self.assertRaisesRegex(ValueError, 'no longer active'):
+            self.orch.guard(run.run_id, 'missing-task', 'Write')
+
+    def test_bash_allowed_blocks_metacharacters_and_matches_prefix(self):
+        self.assertTrue(bash_allowed('git status', ['git status']))
+        self.assertTrue(bash_allowed('git log -n 5', ['git log']))
+        self.assertFalse(bash_allowed('git status; rm -rf /', ['git status']))
+        self.assertFalse(bash_allowed('unlisted command', ['git status']))
+        self.assertFalse(bash_allowed('', ['git status']))
+
+    def test_default_tools_enforce_containment_and_command_allowlist(self):
+        scratch = self.root / 'scratch'
+        scratch.mkdir()
+        (scratch / 'a.txt').write_text('first\nzzsentinelzz\n')
+        tools = build_default_tools(self.root, ['git status'])
+        self.assertEqual(tools.tools['read_file']['handler']('scratch/a.txt')['content'], 'first\nzzsentinelzz\n')
+        self.assertEqual(tools.tools['search_text']['handler']('zzsentinelzz', 'scratch')['matches'], ['scratch/a.txt:2:zzsentinelzz'])
+        written = tools.tools['write_file']['handler']('sub/b.txt', 'hello')
+        self.assertEqual((self.root / 'sub/b.txt').read_text(), 'hello')
+        self.assertEqual(written['bytes_written'], 5)
+        with self.assertRaisesRegex(ValueError, 'escapes the project root'):
+            tools.tools['read_file']['handler']('../outside.txt')
+        with self.assertRaises(PermissionError):
+            tools.tools['run_command']['handler']('rm -rf /')
+
+    def test_cli_task_lifecycle_round_trip(self):
+        store = RuntimeStore(str(self.root / 'lifecycle.sqlite3'))
+        self.addCleanup(store.conn.close)
+        self.addCleanup(lambda: ACTIVE_TASK_POINTER.unlink(missing_ok=True))
+        run = Orchestrator(store, KIT).start('smoke', 'device_preview', 'CLI lifecycle', repo=self.root)
+
+        def call(*extra):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = cli_main(['--db', store.db_path, *extra])
+            self.assertEqual(code, 0, buf.getvalue())
+            return json.loads(buf.getvalue())
+
+        started = call('task-start', run.run_id, '--skill', 'prompt-intake-adapter')
+        self.assertTrue(ACTIVE_TASK_POINTER.exists())
+        task_id = started['task_id']
+        read = call('call-tool', run.run_id, task_id, '--name', 'read_file', '--args', json.dumps({'path': 'requirements.md'}))
+        self.assertEqual(read['content'], 'Confirmed scope')
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            denied = cli_main(['--db', store.db_path, 'call-tool', run.run_id, task_id, '--name', 'write_file',
+                                '--args', json.dumps({'path': 'blocked.txt', 'content': 'x'}), '--idempotency-key', 'k'])
+        self.assertEqual(denied, 1)
+        self.assertIn('capability denied', buf.getvalue())
+        result_path = self.root / 'lifecycle-result.json'
+        result_path.write_text(json.dumps(ready()))
+        call('task-finish', run.run_id, task_id, '--file', str(result_path))
+        self.assertFalse(ACTIVE_TASK_POINTER.exists())
+        self.assertEqual(store.get_run(run.run_id).metadata['results']['INTAKE']['status'], 'READY')
 
     def test_runtime_demo_completes_without_effects(self):
         result = subprocess.run([sys.executable, '-B', str(KIT / 'examples/runtime-demo.py')], capture_output=True, text=True)

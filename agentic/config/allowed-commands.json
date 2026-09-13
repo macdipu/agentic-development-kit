@@ -1,0 +1,12 @@
+{
+  "commands": [
+    "flutter analyze",
+    "flutter test",
+    "flutter pub get",
+    "dart format --output=none --set-exit-if-changed .",
+    "dart pub run dart_fix --apply --dry-run",
+    "git status",
+    "git diff",
+    "git log"
+  ]
+}

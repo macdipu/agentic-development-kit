@@ -8,6 +8,7 @@ agentic/MANIFEST.md
 agentic/MANIFEST.txt
 agentic/README.md
 agentic/SKILL-CATALOG.md
+agentic/config/allowed-commands.json
 agentic/config/capabilities.json
 agentic/config/platform.json
 agentic/config/skill-registry.json
@@ -43,6 +44,7 @@ agentic/project-context/context-index.yaml
 agentic/project-context/kit-runtime.json
 agentic/project-context/project.yaml
 agentic/runtime/README.md
+agentic/runtime/hooks/pretooluse_gate.py
 agentic/runtime/python/agentic_runtime/__init__.py
 agentic/runtime/python/agentic_runtime/cli.py
 agentic/runtime/python/agentic_runtime/context.py
@@ -55,9 +57,11 @@ agentic/runtime/python/agentic_runtime/registry.py
 agentic/runtime/python/agentic_runtime/security.py
 agentic/runtime/python/agentic_runtime/store.py
 agentic/runtime/python/agentic_runtime/timing.py
+agentic/runtime/python/agentic_runtime/tools.py
 agentic/runtime/tests/test_runtime.py
 agentic/schemas/agent-result.schema.json
 agentic/schemas/workflow-run.schema.json
+agentic/scripts/init_project.py
 agentic/scripts/validate-kit.sh
 agentic/scripts/validate_structure.py
 agentic/skills/RESULT-CONTRACT.md

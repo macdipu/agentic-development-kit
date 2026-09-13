@@ -10,9 +10,20 @@ sys.path.insert(0, str(HERE.parent))
 from agentic_runtime.orchestrator import Orchestrator
 from agentic_runtime.policy import PLANNING, STAGES, WORK_TYPES
 from agentic_runtime.store import RuntimeStore
+from agentic_runtime.tools import NATIVE_TOOL_CAPABILITY, build_default_tools
 
 KIT = HERE.parents[2]
 DB = KIT / 'runtime/state/agentic.db'
+ACTIVE_TASK_POINTER = KIT / 'runtime/state/active-task.json'
+
+
+def _write_active_task(db, run_id, task_id):
+    ACTIVE_TASK_POINTER.parent.mkdir(parents=True, exist_ok=True)
+    ACTIVE_TASK_POINTER.write_text(json.dumps({'db': str(Path(db).resolve()), 'run_id': run_id, 'task_id': task_id}))
+
+
+def _clear_active_task():
+    ACTIVE_TASK_POINTER.unlink(missing_ok=True)
 
 
 def main(argv=None):
@@ -50,6 +61,28 @@ def main(argv=None):
         command = sub.add_parser(name)
         command.add_argument('run_id')
         command.add_argument('--reason', required=True)
+    task_start = sub.add_parser('task-start', help='Begin a governed task for a cross-process adapter (Python or CLI-driven)')
+    task_start.add_argument('run_id')
+    task_start.add_argument('--skill', required=True)
+    call_tool = sub.add_parser('call-tool', help='Invoke a registered gateway tool for an active task')
+    call_tool.add_argument('run_id')
+    call_tool.add_argument('task_id')
+    call_tool.add_argument('--name', required=True)
+    call_tool.add_argument('--args', default='{}', help='JSON object of tool arguments')
+    call_tool.add_argument('--idempotency-key')
+    task_finish = sub.add_parser('task-finish', help='Submit the handoff envelope for an active task and close it')
+    task_finish.add_argument('run_id')
+    task_finish.add_argument('task_id')
+    task_finish.add_argument('--file', type=Path, required=True)
+    task_fail = sub.add_parser('task-fail', help='Record an interrupted or errored task without accepting a result')
+    task_fail.add_argument('run_id')
+    task_fail.add_argument('task_id')
+    task_fail.add_argument('--error', required=True)
+    guard = sub.add_parser('guard', help='Permission check for a native coding-agent tool call (used by the PreToolUse hook)')
+    guard.add_argument('run_id')
+    guard.add_argument('task_id')
+    guard.add_argument('--tool', required=True, choices=sorted(NATIVE_TOOL_CAPABILITY))
+    guard.add_argument('--command', help='The Bash command text, required when --tool Bash')
     args = parser.parse_args(argv)
     store = None
     try:
@@ -78,8 +111,31 @@ def main(argv=None):
             output = orch.execute(args.run_id, args.skill, lambda context, call_tool: submitted)
         elif args.cmd in {'reopen', 'recover'}:
             output = getattr(orch, args.cmd)(args.run_id, args.reason)
+            if args.cmd == 'recover':
+                _clear_active_task()
+        elif args.cmd == 'task-start':
+            task, context = orch.start_task(args.run_id, args.skill)
+            _write_active_task(args.db, args.run_id, task['id'])
+            output = {'task_id': task['id'], 'context': context}
+        elif args.cmd == 'call-tool':
+            run = store.get_run(args.run_id)
+            if run is None:
+                raise ValueError('Unknown run')
+            tools = build_default_tools(run.metadata['repo'], orch.allowed_commands)
+            output = Orchestrator(store, KIT, tools).call_tool(args.run_id, args.task_id, args.name, json.loads(args.args), args.idempotency_key)
+        elif args.cmd == 'task-finish':
+            submitted = json.loads(args.file.read_text())
+            output = orch.finish_task(args.run_id, args.task_id, submitted)
+            _clear_active_task()
+        elif args.cmd == 'task-fail':
+            orch.fail_task(args.run_id, args.task_id, args.error)
+            _clear_active_task()
+            output = {'task_id': args.task_id, 'failed': True}
+        elif args.cmd == 'guard':
+            output = orch.guard(args.run_id, args.task_id, args.tool, args.command)
         else:
             output = orch.cancel(args.run_id)
+            _clear_active_task()
         print(json.dumps(output.to_dict() if hasattr(output, 'to_dict') else output, indent=2))
         return 0
     except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:

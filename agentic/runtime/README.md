@@ -13,6 +13,8 @@ This Python 3.10+ standard-library runtime governs local workflow state and trus
 | Skills | Stage eligibility and SHA-256 pins for instructions, references, shared contract | Trusted local files and adapters; no automatic model execution |
 | Results | Handoff shape, statuses, evidence presence, blocker consistency | Evidence truth and domain correctness require review |
 | Tools | Registered L0–L6 ceilings, side-effect classification, idempotency reservation, audit, dry-run suppression | Trusted handlers must declare effects correctly and use the gateway |
+| Default tools | `read_file`, `list_directory`, `search_text`, `write_file`, `run_command` bound to the run's repo root, path containment, and an exact-match command allowlist | A fixed starter set; extend `agentic_runtime.tools` for project-specific handlers |
+| Coding-agent gate | A CLI-driven task protocol (`task-start`/`call-tool`/`task-finish`/`task-fail`) plus a Claude Code `PreToolUse` hook (`guard`) that checks native Bash/Write/Edit/NotebookEdit calls against the active task's capability ceiling and Bash allowlist | Enforced only while a task is active and only for the matched tools; a session with no active governed task is unaffected |
 | Budgets | Attempts per scope/stage/skill, tool calls per task, elapsed task deadline | Cooperative checks before/after calls; cannot kill a blocked process |
 | Cancellation | Terminal run, no new calls or accepted late result | Cannot undo an external effect or terminate an arbitrary adapter |
 | Recovery | Explicit interruption acknowledgment; failed/unknown tool outcomes are not replayed | Operator must stop the old worker and reconcile external effects |
@@ -93,6 +95,24 @@ Register trusted tools with `ToolRegistry.register(name, handler, capability='L0
 `--dry-run` suppresses side-effecting gateway calls and returns an explicit simulated result. Local workflow state, audit, and timing are still recorded; read-only tools still execute. It cannot suppress direct side effects performed by a handler outside the gateway. Do not present simulated results as live verification.
 
 Default limits are two retries after the initial attempt, 900 seconds per adapter attempt, and 50 tool calls per task. Retries are explicit calls, not an automatic loop. Use a managed process supervisor for hard timeouts and process termination. Budget errors, task failures, and tool errors are recorded; secrets are masked on a best-effort basis.
+
+## Coding-agent integration
+
+Two adapters route real work through the harness instead of only recording a pasted result.
+
+**A Python or subprocess-driven adapter** calls `orch.execute(run_id, skill, handler)` in-process (above), or drives the same lifecycle across process boundaries with the CLI:
+
+```sh
+python3 agentic_runtime/cli.py task-start RUN_ID --skill implementation-agent
+python3 agentic_runtime/cli.py call-tool RUN_ID TASK_ID --name write_file --args '{"path":"lib/foo.dart","content":"..."}' --idempotency-key foo-1
+python3 agentic_runtime/cli.py task-finish RUN_ID TASK_ID --file path/to/result.json
+```
+
+`call-tool` uses the default tools above (`read_file`, `list_directory`, `search_text`, `write_file`, `run_command`), bound to the run's registered repo root and the allowlist in `config/allowed-commands.json`. An error before `task-finish` should be reported with `task-fail RUN_ID TASK_ID --error "..."` rather than left active; recover the marker only after confirming the worker actually stopped.
+
+**Claude Code itself as the adapter**: `task-start` also writes `agentic/runtime/state/active-task.json` (cleared by `task-finish`/`task-fail`/`cancel`/`recover`). `.claude/settings.json` wires a `PreToolUse` hook (`agentic/runtime/hooks/pretooluse_gate.py`, matcher `Bash|Write|Edit|NotebookEdit`) that, whenever that marker is present, calls `orch.guard(run_id, task_id, tool_name, command)` before the real tool runs: it re-checks the active task (pins, approvals, timeout), the current skill's capability ceiling against the tool's native level, and — for Bash — the same command allowlist, rejecting shell metacharacters outright rather than trusting a prefix match. A denial blocks the tool call with a reason Claude sees; every checked call is audited. With no active task, the hook allows everything untouched, so ad hoc (non-governed) Claude Code use in the project is unaffected. A hook or harness construction error fails open (allow) so a runtime bug cannot brick the session; only an explicit `guard` policy decision denies.
+
+This closes the routing gap, not the trust boundary above: `guard` checks permission and audits, it does not execute or sandbox the native tool call itself, and only Bash/Write/Edit/NotebookEdit are matched. Copying the kit into a project must also copy `.claude/settings.json` (merge if one exists) and `agentic/runtime/hooks/` for the gate to apply there.
 
 ## Cancel, recover, and upgrade
 

@@ -10,6 +10,7 @@ from .models import WorkflowRun
 from .policy import evaluate, workflow_route
 from .registry import SkillRegistry, ToolRegistry
 from .security import redact_value
+from .tools import NATIVE_TOOL_CAPABILITY, bash_allowed
 
 
 def now():
@@ -26,6 +27,7 @@ class Orchestrator:
         self.tools = tools or ToolRegistry()
         self.policy = json.loads((self.kit_dir / 'config/platform.json').read_text())
         self.capabilities = json.loads((self.kit_dir / 'config/capabilities.json').read_text())['defaults']
+        self.allowed_commands = json.loads((self.kit_dir / 'config/allowed-commands.json').read_text())['commands']
         self.loaded_config_hash = self._config_hash()
         for key in ('max_agent_retries', 'max_task_seconds', 'max_tool_calls_per_task'):
             if type(self.policy.get(key)) is not int or self.policy[key] < (0 if key == 'max_agent_retries' else 1):
@@ -39,7 +41,7 @@ class Orchestrator:
             raise ValueError('require_uat_approval must be boolean')
 
     def _config_hash(self):
-        data = b''.join((self.kit_dir / 'config' / name).read_bytes() for name in ('platform.json', 'capabilities.json', 'skill-registry.json'))
+        data = b''.join((self.kit_dir / 'config' / name).read_bytes() for name in ('platform.json', 'capabilities.json', 'skill-registry.json', 'allowed-commands.json'))
         return hashlib.sha256(data).hexdigest()
 
     def _run(self, run_id, allow_terminal=False):
@@ -220,8 +222,8 @@ class Orchestrator:
             if self.store.has_approval(run.run_id, gate):
                 self.store.approval(run.run_id, gate, 'runtime', 'REVOKED', 'Supporting evidence changed', now(), run.metadata['scope_revision'])
 
-    def execute(self, run_id, skill, handler):
-        """Run a trusted adapter(context, call_tool) and validate its handoff."""
+    def start_task(self, run_id, skill):
+        """Begin a governed task and return (task, context) for a handler or a cross-process CLI adapter."""
         with self.store.transaction():
             run = self._run(run_id)
             self._current_config(run)
@@ -255,35 +257,72 @@ class Orchestrator:
                 # Recheck containment in case a path was replaced with a symlink.
                 snapshot(run.metadata['repo'], [name], include_revision=False)
                 context['context_files'][name] = redact_value((Path(run.metadata['repo']) / name).read_text(encoding='utf-8'))
-            result = handler(context, lambda name, arguments=None, idempotency_key=None: self.call_tool(run_id, task['id'], name, arguments or {}, idempotency_key))
-            result = redact_value(validate_result(result))
-            # Ensure persisted adapter outputs are JSON serializable before acceptance.
-            json.dumps(result, allow_nan=False)
-            with self.store.transaction():
-                current, active = self._active(run_id, task['id'])
-                if self.registry.discover()[skill]['revision'] != current.metadata['skill_pins'][skill]:
-                    raise ValueError('Skill changed during execution')
-                current.metadata['active_task'] = None
-                current.metadata['results'][current.stage] = result
-                if current.stage == 'IMPLEMENTATION':
-                    # Existing scope files are fingerprinted after this implementation attempt.
-                    current.metadata['context'] = snapshot(current.metadata['repo'], list(current.metadata['context']['files']))
-                current.status = 'RUNNING' if result['status'] in SUCCESS_STATUSES else 'BLOCKED'
-                duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
-                self.store.timing(run_id, task['id'], 'COMPLETED', now(), {'duration_ms': duration, 'result_status': result['status']})
-                self._save(current, 'RESULT_RECORDED', {'skill': skill, 'result': result})
-            return result
         except BaseException as exc:
-            with self.store.transaction():
-                current = self._run(run_id, allow_terminal=True)
-                active = current.metadata['active_task']
-                if active and active['id'] == task['id']:
-                    current.metadata['active_task'] = None
-                    current.status = 'BLOCKED'
-                    duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
-                    self.store.timing(run_id, task['id'], 'FAILED', now(), {'error': str(exc), 'duration_ms': duration})
-                    self._save(current, 'TASK_FAILED', {'error': str(exc)})
+            self.fail_task(run_id, task['id'], exc)
             raise
+        return task, context
+
+    def finish_task(self, run_id, task_id, result):
+        """Validate and record a task's handoff envelope, closing the active task."""
+        result = redact_value(validate_result(result))
+        # Ensure persisted adapter outputs are JSON serializable before acceptance.
+        json.dumps(result, allow_nan=False)
+        with self.store.transaction():
+            current, active = self._active(run_id, task_id)
+            skill = active['skill']
+            if self.registry.discover()[skill]['revision'] != current.metadata['skill_pins'][skill]:
+                raise ValueError('Skill changed during execution')
+            current.metadata['active_task'] = None
+            current.metadata['results'][current.stage] = result
+            if current.stage == 'IMPLEMENTATION':
+                # Existing scope files are fingerprinted after this implementation attempt.
+                current.metadata['context'] = snapshot(current.metadata['repo'], list(current.metadata['context']['files']))
+            current.status = 'RUNNING' if result['status'] in SUCCESS_STATUSES else 'BLOCKED'
+            duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
+            self.store.timing(run_id, task_id, 'COMPLETED', now(), {'duration_ms': duration, 'result_status': result['status']})
+            self._save(current, 'RESULT_RECORDED', {'skill': skill, 'result': result})
+        return result
+
+    def fail_task(self, run_id, task_id, error):
+        """Record an interrupted or errored task without replaying or accepting its result."""
+        with self.store.transaction():
+            current = self._run(run_id, allow_terminal=True)
+            active = current.metadata['active_task']
+            if active and active['id'] == task_id:
+                current.metadata['active_task'] = None
+                current.status = 'BLOCKED'
+                duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
+                self.store.timing(run_id, task_id, 'FAILED', now(), {'error': str(error), 'duration_ms': duration})
+                self._save(current, 'TASK_FAILED', {'error': str(error)})
+
+    def execute(self, run_id, skill, handler):
+        """Run a trusted adapter(context, call_tool) and validate its handoff."""
+        task, context = self.start_task(run_id, skill)
+        try:
+            result = handler(context, lambda name, arguments=None, idempotency_key=None: self.call_tool(run_id, task['id'], name, arguments or {}, idempotency_key))
+            return self.finish_task(run_id, task['id'], result)
+        except BaseException as exc:
+            self.fail_task(run_id, task['id'], exc)
+            raise
+
+    def guard(self, run_id, task_id, tool_name, command=None):
+        """Permission check for a native coding-agent tool call (e.g. a PreToolUse hook); never executes or replays it."""
+        with self.store.transaction():
+            run, task = self._active(run_id, task_id)
+            if tool_name not in NATIVE_TOOL_CAPABILITY:
+                raise PermissionError('Unrecognized native tool: ' + tool_name)
+            level, _side_effecting = NATIVE_TOOL_CAPABILITY[tool_name]
+            ceiling = self.capabilities.get(task['skill'], 'L0')
+            if int(level[1:]) > int(ceiling[1:]):
+                raise PermissionError('Native tool capability denied: ' + tool_name)
+            if tool_name == 'Bash' and not bash_allowed(command, self.allowed_commands):
+                raise PermissionError('Command not in the governed allowlist: ' + str(command))
+            if task['tool_calls'] >= self.policy['max_tool_calls_per_task']:
+                raise ValueError('Tool call budget exhausted')
+            task['tool_calls'] += 1
+            self.store.audit(run_id, 'NATIVE_TOOL_GUARDED', {'tool': tool_name, 'command': command}, now())
+            self._save(run, 'NATIVE_TOOL_GUARDED', {'tool': tool_name})
+        return {'allowed': True, 'tool': tool_name}
 
     def call_tool(self, run_id, task_id, name, arguments, idempotency_key=None):
         try:
