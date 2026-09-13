@@ -74,17 +74,22 @@ def merge_hook_settings(target_root):
     source = json.loads((KIT_REPO_ROOT / '.claude/settings.json').read_text())
     dest_path = target_root / '.claude/settings.json'
     dest = json.loads(dest_path.read_text()) if dest_path.exists() else {}
-    dest.setdefault('hooks', {}).setdefault('PreToolUse', [])
-    existing = {(entry.get('matcher'), h.get('type'), h.get('command')) for entry in dest['hooks']['PreToolUse'] for h in entry.get('hooks', [])}
-    added = False
-    for entry in source['hooks']['PreToolUse']:
-        key = (entry.get('matcher'), entry['hooks'][0].get('type'), entry['hooks'][0].get('command'))
-        if key not in existing:
-            dest['hooks']['PreToolUse'].append(entry)
-            added = True
+    dest.setdefault('hooks', {})
+    added_events = []
+    for event, source_entries in source['hooks'].items():
+        dest_entries = dest['hooks'].setdefault(event, [])
+        existing = {(entry.get('matcher'), h.get('type'), h.get('command')) for entry in dest_entries for h in entry.get('hooks', [])}
+        added = False
+        for entry in source_entries:
+            key = (entry.get('matcher'), entry['hooks'][0].get('type'), entry['hooks'][0].get('command'))
+            if key not in existing:
+                dest_entries.append(entry)
+                added = True
+        if added:
+            added_events.append(event)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     dest_path.write_text(json.dumps(dest, indent=2) + '\n')
-    log('MERGE .claude/settings.json (PreToolUse gate hook)' if added else 'KEEP  .claude/settings.json already has the gate hook')
+    log(f"MERGE .claude/settings.json ({', '.join(added_events)} hook(s))" if added_events else 'KEEP  .claude/settings.json already has all kit hooks')
 
 
 def merge_gitignore(target_root):
@@ -145,15 +150,24 @@ def verify(target_root):
     checks.append(('agentic/ present', target_kit_dir.is_dir()))
     checks.append(('AGENTS.md present', (target_root / 'AGENTS.md').is_file()))
     hook_wired = False
+    session_start_wired = False
     settings_path = target_root / '.claude/settings.json'
     if settings_path.exists():
         try:
             settings = json.loads(settings_path.read_text())
             hook_wired = any('Bash' in (entry.get('matcher') or '') for entry in settings.get('hooks', {}).get('PreToolUse', []))
+            session_start_wired = any(
+                'session_start_check.py' in h.get('command', '')
+                for entry in settings.get('hooks', {}).get('SessionStart', [])
+                for h in entry.get('hooks', [])
+            )
         except (ValueError, OSError):
             hook_wired = False
+            session_start_wired = False
     checks.append(('PreToolUse gate hook wired in .claude/settings.json', hook_wired))
     checks.append(('gate hook script present', (target_kit_dir / 'runtime/hooks/pretooluse_gate.py').is_file()))
+    checks.append(('SessionStart midflight-check hook wired in .claude/settings.json', session_start_wired))
+    checks.append(('midflight-check script present', (target_kit_dir / 'runtime/hooks/session_start_check.py').is_file()))
     checks.append(('runtime db initialized', (target_kit_dir / 'runtime/state/agentic.db').is_file()))
     checks.append(('/agentic-init skill available for re-runs', (target_root / '.claude/skills/agentic-init/SKILL.md').is_file()))
     log('')

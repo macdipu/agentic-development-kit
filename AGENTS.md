@@ -4,18 +4,19 @@ This file is the canonical repository-level instruction entrypoint for agentic d
 
 ## Core behavior
 
-1. Treat the current repository as the source project.
-2. Use `agentic/project-context/` before performing broad discovery.
-3. If context is available and sufficiently fresh, reuse it.
-4. If context is stale or missing, refresh only the affected module or feature scope.
-5. Do not audit the whole repository for every task.
-6. Prefer existing implementations, shared components, and established architectural patterns.
-7. Never invent missing business rules.
-8. Never infer human approval.
-9. Route work through the appropriate workflow in `agentic/workflows/`.
-10. Use skills under `agentic/skills/` as reusable specialist workflows.
-11. Record agent start/end timing and relevant task telemetry through the harness.
-12. Preserve traceability from request -> requirements -> design -> tasks -> implementation -> QA -> release.
+1. On session start, check for a midflight task before doing anything else (enforced by the `SessionStart` hook, `agentic/runtime/hooks/session_start_check.py`): if `agentic/runtime/state/active-task.json` exists, or the run DB has a run with status `RUNNING`/`BLOCKED`, resume it — do not start a new run for that work item. Only start the next work item once nothing is midflight.
+2. Treat the current repository as the source project.
+3. Use `agentic/project-context/` before performing broad discovery.
+4. If context is available and sufficiently fresh, reuse it.
+5. If context is stale or missing, refresh only the affected module or feature scope.
+6. Do not audit the whole repository for every task.
+7. Prefer existing implementations, shared components, and established architectural patterns.
+8. Never invent missing business rules.
+9. Never infer human approval.
+10. Route work through the appropriate workflow in `agentic/workflows/`.
+11. Use skills under `agentic/skills/` as reusable specialist workflows.
+12. Record agent start/end timing and relevant task telemetry through the harness.
+13. Preserve traceability from request -> requirements -> design -> tasks -> implementation -> QA -> release.
 
 ## Input modes
 

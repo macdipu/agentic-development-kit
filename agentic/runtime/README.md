@@ -114,6 +114,8 @@ python3 agentic_runtime/cli.py task-finish RUN_ID TASK_ID --file path/to/result.
 
 This closes the routing gap, not the trust boundary above: `guard` checks permission and audits, it does not execute or sandbox the native tool call itself, and only Bash/Write/Edit/NotebookEdit are matched. Copying the kit into a project must also copy `.claude/settings.json` (merge if one exists) and `agentic/runtime/hooks/` for the gate to apply there.
 
+**Midflight check on session start**: `.claude/settings.json` also wires a `SessionStart` hook (`agentic/runtime/hooks/session_start_check.py`, no matcher — fires on startup/resume/clear alike) that runs before any other work. It checks, in order: (1) `agentic/runtime/state/active-task.json` — present means a `task-start` was never closed, so it reports the run/task to resume; (2) if absent, the default run DB (`agentic/runtime/state/agentic.db`) for the most recently updated run whose `status` is `RUNNING` or `BLOCKED` — reports it as a midflight run to resume via `show`/`recover` rather than starting a fresh one; (3) if neither, it reports that nothing is in flight and the next work item can start. The verdict is injected as `additionalContext`, so it's the first thing the agent reads. Reading state never blocks the session — any error falls back to "no active task" rather than failing closed.
+
 ## Cancel, recover, and upgrade
 
 ```sh
