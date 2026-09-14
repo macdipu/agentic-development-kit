@@ -2,6 +2,6 @@
 .idea/
 __pycache__/
 *.py[cod]
-/agentic/runtime/state/
-/runtime/state/
-/agentic/artifacts/
+/agentic/data/runtime/state/
+/agentic/data/runtime/logs/
+/agentic/data/artifacts/

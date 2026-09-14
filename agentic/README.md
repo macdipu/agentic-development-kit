@@ -4,20 +4,32 @@ This directory contains the reusable agentic development system for the host pro
 
 ## Layout
 
+Two kinds of thing live under `agentic/`: the reusable **kit** (code, skills, templates — same in every project, changes only when the kit itself is upgraded) and **data** (per-project state, logs, and generated docs — grows as the project runs). They stay in separate top-level folders so it's obvious which is which.
+
 ```text
 agentic/
-├── README.md
-├── MANIFEST.md
-├── SKILL-CATALOG.md
-├── skills/
-├── project-context/
-├── workflows/
-├── policies/
-├── templates/
-├── config/
-├── platform/
-└── examples/
+├── README.md, MANIFEST.md, SKILL-CATALOG.md, ADOPTION.md   # kit docs
+├── skills/          # KIT — specialist skill definitions
+├── workflows/        # KIT — stage routing per work type
+├── templates/         # KIT — blank doc templates (brd.md, srs.md, architecture.md, ...)
+├── policies/           # KIT — default policy
+├── config/               # KIT — capability/skill-registry/platform config
+├── examples/               # KIT — runnable demo, prompt/document-first examples
+├── scripts/                  # KIT — init/validation scripts
+├── runtime/
+│   ├── README.md                # KIT — runtime guide + capability matrix
+│   ├── production-readiness.md   # KIT — checklist for a real (non-local) deployment
+│   ├── hooks/                     # KIT — SessionStart/PreCompact/PreToolUse hook scripts
+│   └── python/                     # KIT — agentic_runtime package (orchestrator, store, ...)
+└── data/                              # DATA — see data/README.md
+    ├── project-context/                # per-project discovery cache + generated feature docs
+    ├── work-items/                       # freeform task docs (not templated feature artifacts)
+    └── runtime/
+        ├── state/                          # gitignored — active-task pointer, run DB
+        └── logs/                             # gitignored
 ```
+
+Never put generated or per-project content in the kit folders above `data/`; never put skill/template/config source in `data/`. See `agentic/data/README.md` for what goes in each data subfolder.
 
 ## Usage
 
@@ -25,7 +37,7 @@ Start with the [adoption guide](ADOPTION.md) for installation and upgrades, and 
 
 Keep `AGENTS.md` and `CLAUDE.md` at the repository root. The host project's existing root `README.md` remains the project README.
 
-The kit supports both prompt-first and document-first intake. Both are normalized into the same canonical work-item flow.
+The kit supports both prompt-first and document-first intake. Both are normalized into the same canonical work-item flow. Derived artifacts (SRS, architecture, tech spec, ADRs, tasks) are stored per work item under `agentic/data/project-context/features/<work-item-id>/` — see that folder's `README.md` for the layout and `agentic/templates/` for each artifact's template.
 
 ```text
 Prompt ------------------+

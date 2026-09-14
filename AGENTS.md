@@ -4,10 +4,10 @@ This file is the canonical repository-level instruction entrypoint for agentic d
 
 ## Core behavior
 
-1. On session start, check for a midflight task before doing anything else (enforced by the `SessionStart` hook, `agentic/runtime/hooks/session_start_check.py`): if `agentic/runtime/state/active-task.json` exists, or the run DB has a run with status `RUNNING`/`BLOCKED`, resume it — do not start a new run for that work item. Only start the next work item once nothing is midflight. On a CLI without hook support, run that script yourself as the first action of the session.
+1. On session start, check for a midflight task before doing anything else (enforced by the `SessionStart` hook, `agentic/runtime/hooks/session_start_check.py`): if `agentic/data/runtime/state/active-task.json` exists, or the run DB has a run with status `RUNNING`/`BLOCKED`, resume it — do not start a new run for that work item. Only start the next work item once nothing is midflight. On a CLI without hook support, run that script yourself as the first action of the session.
 2. When compaction is imminent (surfaced by the `PreCompact` hook, `agentic/runtime/hooks/precompact_checkpoint.py`, or on your own judgment if your CLI has no hook support), update every doc this session touched — work-item status, README/AGENTS notes, any tracked plan — before the turn ends, and scope any remaining work down to the smallest subtask that can actually finish rather than starting something large.
 3. Treat the current repository as the source project.
-4. Use `agentic/project-context/` before performing broad discovery.
+4. Use `agentic/data/project-context/` before performing broad discovery.
 5. If context is available and sufficiently fresh, reuse it.
 6. If context is stale or missing, refresh only the affected module or feature scope.
 7. Do not audit the whole repository for every task.

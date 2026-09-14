@@ -1,0 +1,13 @@
+system:
+  status: MISSING
+modules:
+  kit-runtime:
+    status: AVAILABLE
+    context_file: agentic/data/project-context/kit-runtime.json
+    freshness_strategy: scoped-file-sha256
+# features:
+#   FEATURE-042:
+#     status: READY            # DRAFT | READY | TECHNICAL_READY | IN_PROGRESS | DONE
+#     path: agentic/data/project-context/features/FEATURE-042
+#     last_indexed_revision: null
+features: {}
