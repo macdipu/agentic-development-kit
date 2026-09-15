@@ -24,7 +24,7 @@ def packaged_files():
         rel_parts = path.relative_to(AGENTIC).parts
         if rel_parts[0] == 'data':
             continue
-        if any(part in {'__pycache__', 'state', 'artifacts'} for part in rel_parts):
+        if any(part in {'__pycache__', 'state', 'artifacts'} or part.startswith('kit.bak-') for part in rel_parts):
             continue
         files.append(str(path.relative_to(ROOT)))
     return sorted(root_files + files)
@@ -44,6 +44,25 @@ def main():
         raise ValueError('No skills found')
     config = json.loads((KIT / 'config/skill-registry.json').read_text())
     caps = json.loads((KIT / 'config/capabilities.json').read_text())
+    permissions = json.loads((KIT / 'config/permissions.json').read_text())
+    allowed_permissions = {'read', 'write_artifact', 'modify_code', 'run_check', 'preview'}
+    if set(permissions) != set(skills) or any(not isinstance(p, list) or not p or not set(p) <= allowed_permissions for p in permissions.values()):
+        raise ValueError('Each skill needs an explicit valid permission set')
+    commands = json.loads((KIT / 'config/allowed-commands.json').read_text())['commands']
+    from agentic_runtime.tools import command_rule
+    import shlex
+    if not isinstance(commands, list):
+        raise ValueError('commands must be an array')
+    for command in commands:
+        if isinstance(command, str):
+            argv = shlex.split(command)
+        elif isinstance(command, dict) and set(command) == {'argv', 'permission'}:
+            argv = command['argv']
+        else:
+            raise ValueError('Command rules must contain argv and permission')
+        if not isinstance(argv, list) or not argv or any(not isinstance(a, str) or not a for a in argv):
+            raise ValueError('Command argv must contain nonempty strings')
+        command_rule(shlex.join(argv), [], commands)
     if set(config['eligibility']) != set(skills) or set(caps['defaults']) != set(skills):
         raise ValueError('Registry and capability names must match discovered skills')
     from agentic_runtime.policy import STAGES
@@ -65,7 +84,18 @@ def main():
         elif path.suffix == '.py':
             ast.parse(path.read_text(), filename=name)
         elif path.suffix == '.md':
-            text = re.sub(r'```.*?```', '', path.read_text(), flags=re.S)
+            raw = path.read_text()
+            # Literal reusable-kit paths in examples and inline code must exist.
+            # Generated project paths and parameterized examples are not sources.
+            for match in re.finditer(r'(?<![\w/])agentic/kit/[A-Za-z0-9_./-]+', raw):
+                target = match.group(0).rstrip('.')
+                if match.end() < len(raw) and raw[match.end()] in '<*{':
+                    continue
+                if not (ROOT / target).exists():
+                    raise ValueError(f'Broken literal kit path in {name}: {target}')
+            if re.search(r'(?<![\w/])agentic/(?:skills|templates|config|scripts|workflows|policies)/', raw):
+                raise ValueError('Obsolete kit path in ' + name)
+            text = re.sub(r'```.*?```', '', raw, flags=re.S)
             for target in re.findall(r'\[[^\]]*\]\(([^\s)]+)\)', text):
                 if '://' in target or target.startswith('#'):
                     continue

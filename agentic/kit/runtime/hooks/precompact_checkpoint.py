@@ -28,8 +28,8 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
-KIT = Path(__file__).resolve().parents[2]
-ACTIVE_TASK_POINTER = KIT / 'data/runtime/state/active-task.json'
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'runtime/python'))
+from agentic_runtime.paths import KIT, ACTIVE_TASK_POINTER
 
 NUDGE = (
     'Context compaction is about to happen. Before this turn ends: '
@@ -51,6 +51,8 @@ def _checkpoint_active_task():
     if not ACTIVE_TASK_POINTER.exists():
         return None
     pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
+    if not Path(pointer['db']).is_file():
+        raise ValueError('Active-task database is missing')
     sys.path.insert(0, str(KIT / 'runtime/python'))
     from agentic_runtime.store import RuntimeStore
     store = RuntimeStore(pointer['db'])
@@ -59,8 +61,9 @@ def _checkpoint_active_task():
         if run is None:
             return None
         ts = datetime.now(timezone.utc).isoformat()
-        store.checkpoint(run.run_id, run.stage, run.status, {'reason': 'precompact'}, ts)
-        store.audit(run.run_id, 'precompact_checkpoint', {'stage': run.stage, 'status': run.status}, ts)
+        with store.transaction():
+            store.checkpoint(run.run_id, run.stage, run.status, {'reason': 'precompact'}, ts)
+            store.audit(run.run_id, 'precompact_checkpoint', {'stage': run.stage, 'status': run.status}, ts)
         return f"Checkpointed active run {run.run_id} (stage={run.stage}, status={run.status})."
     finally:
         store.conn.close()
@@ -69,7 +72,7 @@ def _checkpoint_active_task():
 def main():
     try:
         checkpoint_note = _checkpoint_active_task()
-    except (OSError, ValueError, KeyError) as exc:
+    except Exception as exc:
         checkpoint_note = f'Could not checkpoint active-task state (fail open): {exc}'
     message = NUDGE if checkpoint_note is None else f'{checkpoint_note} {NUDGE}'
     return _emit(message)

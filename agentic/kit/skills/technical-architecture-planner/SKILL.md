@@ -19,7 +19,7 @@ Verified requirements, baseline architecture, change impact, risks, and integrat
 
 ## Deliverable
 
-Architecture proposal, reuse map, alternatives/tradeoffs, affected contracts, risks, and ADR recommendation. Write or update the artifact at `agentic/data/project-context/features/<work-item-id>/ARCHITECTURE.md` (template: `agentic/templates/architecture.md`).
+Architecture proposal, reuse map, alternatives/tradeoffs, affected contracts, risks, and ADR recommendation. Write or update the artifact at `agentic/data/project-context/features/<work-item-id>/ARCHITECTURE.md` (template: `agentic/kit/templates/architecture.md`).
 
 ## Readiness boundary
 

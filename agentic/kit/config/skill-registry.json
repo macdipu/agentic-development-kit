@@ -1,5 +1,5 @@
 {
-  "source": "agentic/skills",
+  "source": "agentic/kit/skills",
   "version_strategy": "content-sha256",
   "pin_skill_revision_per_run": true,
   "orchestrator_is_routing_authority": true,

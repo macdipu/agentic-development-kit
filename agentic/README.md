@@ -9,18 +9,15 @@ Two kinds of thing live under `agentic/`: the reusable **kit** (code, skills, te
 ```text
 agentic/
 ├── README.md, MANIFEST.md, SKILL-CATALOG.md, ADOPTION.md   # kit docs
-├── skills/          # KIT — specialist skill definitions
-├── workflows/        # KIT — stage routing per work type
-├── templates/         # KIT — blank doc templates (brd.md, srs.md, architecture.md, ...)
-├── policies/           # KIT — default policy
-├── config/               # KIT — capability/skill-registry/platform config
-├── examples/               # KIT — runnable demo, prompt/document-first examples
-├── scripts/                  # KIT — init/validation scripts
-├── runtime/
-│   ├── README.md                # KIT — runtime guide + capability matrix
-│   ├── production-readiness.md   # KIT — checklist for a real (non-local) deployment
-│   ├── hooks/                     # KIT — SessionStart/PreCompact/PreToolUse hook scripts
-│   └── python/                     # KIT — agentic_runtime package (orchestrator, store, ...)
+├── kit/                          # reusable source
+│   ├── skills/                   # specialist definitions
+│   ├── workflows/                # routing per work type
+│   ├── templates/                # blank artifacts and production evidence template
+│   ├── policies/                 # default policy
+│   ├── config/                   # permissions, commands, skills, hooks
+│   ├── examples/                 # isolated smoke and legacy delivery fixtures
+│   ├── scripts/                  # installer and validation
+│   └── runtime/                  # runtime guides, hooks, Python package, tests
 └── data/                              # DATA — see data/README.md
     ├── project-context/                # per-project discovery cache + generated feature docs
     ├── work-items/                       # freeform task docs (not templated feature artifacts)

@@ -19,7 +19,7 @@ Verified scope, work-level classification, technical spec, dependencies, and exi
 
 ## Deliverable
 
-Implementation-ready task list, dependency graph, requirement/test coverage, and unresolved ownership or sequencing decisions. Write each task at `agentic/data/project-context/features/<work-item-id>/tasks/TASK-XXX.md` (template: `agentic/templates/task.md`).
+Implementation-ready task list, dependency graph, requirement/test coverage, and unresolved ownership or sequencing decisions. Write each task at `agentic/data/project-context/features/<work-item-id>/tasks/TASK-XXX.md` (template: `agentic/kit/templates/task.md`).
 
 ## Readiness boundary
 

@@ -7,8 +7,11 @@ Start with [adoption](agentic/ADOPTION.md), browse the [skill catalog](agentic/S
 ```sh
 sh agentic/kit/scripts/validate-kit.sh
 python3 agentic/kit/examples/runtime-demo.py
+python3 agentic/kit/examples/legacy-delivery.py
 ```
 
-Validation uses Python 3.10+ and its standard library. The demo is isolated and synthetic; it neither invokes a model nor launches an app. For mobile app previews, use [device-preview-agent](agentic/kit/skills/device-preview-agent/SKILL.md).
+Validation uses Python 3.10+ and its standard library, including behavioral runtime and adoption tests. Both examples use isolated fixtures; the legacy example reproduces a failing baseline and verifies a source fix with real tests and synthetic approvals. Neither invokes a model nor deploys. For mobile app previews, use [device-preview-agent](agentic/kit/skills/device-preview-agent/SKILL.md).
+
+Installation supports instruction-only and local-harness modes, preserves host configuration, and includes a `doctor` command. The [production readiness contract](agentic/kit/runtime/production-readiness.md) adds staged evidence checks for host deployment infrastructure.
 
 The harness enforces local workflow rules for trusted adapters. Production execution, authenticated human identity, process isolation, and external service integrations require additional infrastructure; see the [capability matrix](agentic/kit/runtime/README.md#capability-matrix).

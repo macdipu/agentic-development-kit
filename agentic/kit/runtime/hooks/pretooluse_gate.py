@@ -3,17 +3,15 @@
 
 Wired via .claude/settings.json (matcher "Bash|Write|Edit|NotebookEdit"). When no
 governed task is active (agentic/data/runtime/state/active-task.json is absent), every
-call is allowed untouched -- this only enforces the harness during a task started
-with `agentic_runtime.cli task-start`. Any error constructing the orchestrator or
-reading its state fails open (allow) so a runtime bug never bricks the session;
-only an explicit policy decision from Orchestrator.guard denies.
+call is allowed untouched. While a marker is present, unreadable state and internal
+gate failures deny matched tools until an operator diagnoses and recovers the task.
 """
 import json
 import sys
 from pathlib import Path
 
-KIT = Path(__file__).resolve().parents[2]
-STATE = KIT / 'data/runtime/state/active-task.json'
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'runtime/python'))
+from agentic_runtime.paths import KIT, ACTIVE_TASK_POINTER as STATE
 GOVERNED_TOOLS = {'Bash', 'Write', 'Edit', 'NotebookEdit'}
 
 
@@ -36,22 +34,24 @@ def main():
             return _emit('allow', 'Tool is not governed by the harness')
         pointer = json.loads(STATE.read_text())
     except (OSError, ValueError) as exc:
-        return _emit('allow', 'Active-task pointer unreadable; failing open: ' + str(exc))
+        return _emit('deny', 'Cannot verify governed state. Run doctor and repair-marker after stopping workers: ' + str(exc))
     try:
         sys.path.insert(0, str(KIT / 'runtime/python'))
         from agentic_runtime.orchestrator import Orchestrator
         from agentic_runtime.store import RuntimeStore
         tool_input = payload.get('tool_input') or {}
         command = tool_input.get('command') if tool_name == 'Bash' else None
+        if not Path(pointer['db']).is_file():
+            raise ValueError('Active task database is missing; restore it before recovery')
         store = RuntimeStore(pointer['db'])
         try:
-            Orchestrator(store, KIT).guard(pointer['run_id'], pointer['task_id'], tool_name, command)
+            Orchestrator(store, KIT).guard(pointer['run_id'], pointer['task_id'], tool_name, command, tool_input)
         finally:
             store.conn.close()
     except (PermissionError, ValueError, TimeoutError) as exc:
         return _emit('deny', str(exc))
-    except BaseException as exc:  # noqa: BLE001 - a hook bug must not brick the session
-        return _emit('allow', 'Gate hook internal error; failing open: ' + str(exc))
+    except Exception as exc:
+        return _emit('deny', 'Cannot verify governed task; run doctor and recover from an operator terminal: ' + str(exc))
     return _emit('allow', 'Permitted by governed run ' + pointer['run_id'])
 
 

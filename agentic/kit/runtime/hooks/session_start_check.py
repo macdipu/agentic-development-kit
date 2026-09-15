@@ -11,18 +11,15 @@ startup/resume/clear alike). Order of checks:
    BLOCKED -> report the most recently updated one as midflight.
 3. Otherwise -> nothing in flight, clear to start the next work item.
 
-Any error reading state fails open with a neutral message so a runtime bug
-never blocks session start; only the reachable, well-formed state drives the
-verdict.
+Unreadable state is reported as UNKNOWN with explicit recovery instructions.
+The session remains available for diagnosis, but must not assume there is no work.
 """
 import json
 import sys
 from pathlib import Path
 
-KIT = Path(__file__).resolve().parents[2]
-REPO_ROOT = Path(__file__).resolve().parents[3]
-ACTIVE_TASK_POINTER = REPO_ROOT / 'data/runtime/state/active-task.json'
-DEFAULT_DB = REPO_ROOT / 'data/runtime/state/agentic.db'
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'runtime/python'))
+from agentic_runtime.paths import KIT, ACTIVE_TASK_POINTER, DB as DEFAULT_DB
 UNFINISHED_STATUSES = {'RUNNING', 'BLOCKED'}
 
 
@@ -38,6 +35,8 @@ def _check_active_task():
     if not ACTIVE_TASK_POINTER.exists():
         return None
     pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
+    if not Path(pointer['db']).is_file():
+        raise ValueError('Active-task database is missing')
     sys.path.insert(0, str(KIT / 'runtime/python'))
     from agentic_runtime.store import RuntimeStore
     store = RuntimeStore(pointer['db'])
@@ -90,10 +89,10 @@ def main():
                 'No midflight task or unfinished run found. Clear to start '
                 'the next work item.'
             )
-    except (OSError, ValueError, KeyError) as exc:
+    except Exception as exc:
         context = (
-            'Midflight check failed to read runtime state; treating as no '
-            f'active task (fail open): {exc}'
+            'Midflight state is UNKNOWN. Do not start new governed work. '
+            f'Run doctor and reconcile the database/marker: {exc}'
         )
     return _emit(context)
 

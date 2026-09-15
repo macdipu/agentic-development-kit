@@ -38,12 +38,16 @@ class ToolRegistry:
     def __init__(self):
         self.tools = {}
 
-    def register(self, name, handler, capability='L0', side_effecting=False):
+    def register(self, name, handler, capability='L0', side_effecting=False, permission=None):
         if name in self.tools or capability not in {'L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6'}:
             raise ValueError('Duplicate tool or unsupported capability')
         if not callable(handler):
             raise ValueError('Tool handler must be callable')
-        self.tools[name] = {'handler': handler, 'capability': capability, 'side_effecting': side_effecting}
+        if permission is not None and permission not in {'read', 'write_artifact', 'modify_code', 'run_check', 'preview'}:
+            raise ValueError('Unknown tool permission')
+        self.tools[name] = {'handler': handler, 'capability': capability, 'side_effecting': side_effecting, 'permission': permission}
 
-    def allowed(self, name, ceiling):
+    def allowed(self, name, ceiling, permissions=()):
+        if name in self.tools and self.tools[name]['permission'] is not None:
+            return self.tools[name]['permission'] in permissions
         return name in self.tools and ceiling in {'L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6'} and int(self.tools[name]['capability'][1:]) <= int(ceiling[1:])

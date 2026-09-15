@@ -14,9 +14,9 @@ See the [production readiness checklist](production-readiness.md) for what organ
 | Context | Explicit scoped file hashes detect dirty changes and deletions | Caller selects sufficient files; no automatic dependency discovery or semantic freshness |
 | Skills | Stage eligibility and SHA-256 pins for instructions, references, shared contract | Trusted local files and adapters; no automatic model execution |
 | Results | Handoff shape, statuses, evidence presence, blocker consistency | Evidence truth and domain correctness require review |
-| Tools | Registered L0–L6 ceilings, side-effect classification, idempotency reservation, audit, dry-run suppression | Trusted handlers must declare effects correctly and use the gateway |
-| Default tools | `read_file`, `list_directory`, `search_text`, `write_file`, `run_command` bound to the run's repo root, path containment, and an exact-match command allowlist | A fixed starter set; extend `agentic_runtime.tools` for project-specific handlers |
-| Coding-agent gate | A CLI-driven task protocol (`task-start`/`call-tool`/`task-finish`/`task-fail`) plus a Claude Code `PreToolUse` hook (`guard`) that checks native Bash/Write/Edit/NotebookEdit calls against the active task's capability ceiling and Bash allowlist | Enforced only while a task is active and only for the matched tools; a session with no active governed task is unaffected |
+| Tools | Explicit read/artifact/code/check/preview permissions, side-effect classification, idempotency reservation, audit, dry-run suppression | Legacy custom handlers may use L0–L6 ceilings; trusted handlers must declare effects correctly |
+| Default tools | Read/search, `write_artifact`, `write_file`, `run_command`, `run_preview`; each searched file is contained and commands match complete argv | Trusted local handlers; not OS isolation or race-proof access against hostile filesystem changes |
+| Coding-agent gate | A CLI-driven task protocol (`task-start`/`call-tool`/`task-finish`/`task-fail`) plus a Claude Code `PreToolUse` hook (`guard`) that checks native Bash/Write/Edit/NotebookEdit calls against the active task's explicit permissions and full Bash argument allowlist | Enforced only while a task is active and only for the matched tools; a session with no active governed task is unaffected |
 | Budgets | Attempts per scope/stage/skill, tool calls per task, elapsed task deadline | Cooperative checks before/after calls; cannot kill a blocked process |
 | Cancellation | Terminal run, no new calls or accepted late result | Cannot undo an external effect or terminate an arbitrary adapter |
 | Recovery | Explicit interruption acknowledgment; failed/unknown tool outcomes are not replayed | Operator must stop the old worker and reconcile external effects |
@@ -104,7 +104,7 @@ Import the runtime with `agentic/kit/runtime/python` on `PYTHONPATH`. Construct 
 
 Register trusted tools with `ToolRegistry.register(name, handler, capability='L0', side_effecting=False)`. Mark every mutation, device launch/install, or external trigger as side-effecting. Invoke through `call_tool(name, arguments, idempotency_key)`; do not call registered handlers directly. A side-effecting call requires a stable key for that logical operation. The gateway checks the skill ceiling, records a reservation before invocation, and returns a stored redacted result for an identical completed request. Reusing a key with different arguments fails. Failed or interrupted outcomes require reconciliation, not automatic replay. This does not provide exactly-once semantics across an external service.
 
-`--dry-run` suppresses side-effecting gateway calls and returns an explicit simulated result. Local workflow state, audit, and timing are still recorded; read-only tools still execute. It cannot suppress direct side effects performed by a handler outside the gateway. Do not present simulated results as live verification.
+`--dry-run` suppresses side-effecting gateway calls and returns an explicit simulated result. Local workflow state, audit, and timing are still recorded; read-only tools still execute. Native side-effecting tools are denied in dry-run; use the gateway to simulate effects. It cannot suppress direct side effects performed by a handler outside the gateway. Do not present simulated results as live verification.
 
 Default limits are two retries after the initial attempt, 900 seconds per adapter attempt, and 50 tool calls per task. Retries are explicit calls, not an automatic loop. Use a managed process supervisor for hard timeouts and process termination. Budget errors, task failures, and tool errors are recorded; secrets are masked on a best-effort basis.
 
@@ -115,20 +115,77 @@ Two adapters route real work through the harness instead of only recording a pas
 **A Python or subprocess-driven adapter** calls `orch.execute(run_id, skill, handler)` in-process (above), or drives the same lifecycle across process boundaries with the CLI:
 
 ```sh
-python3 agentic_runtime/cli.py task-start RUN_ID --skill implementation-agent
-python3 agentic_runtime/cli.py call-tool RUN_ID TASK_ID --name write_file --args '{"path":"lib/foo.dart","content":"..."}' --idempotency-key foo-1
-python3 agentic_runtime/cli.py task-finish RUN_ID TASK_ID --file path/to/result.json
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py task-start RUN_ID --skill implementation-agent
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py call-tool RUN_ID TASK_ID --name write_file --args '{"path":"lib/foo.dart","content":"..."}' --idempotency-key foo-1
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py task-finish RUN_ID TASK_ID --file path/to/result.json
 ```
 
 `call-tool` uses the default tools above (`read_file`, `list_directory`, `search_text`, `write_file`, `run_command`), bound to the run's registered repo root and the allowlist in `config/allowed-commands.json`. An error before `task-finish` should be reported with `task-fail RUN_ID TASK_ID --error "..."` rather than left active; recover the marker only after confirming the worker actually stopped.
 
-**Claude Code itself as the adapter**: `task-start` also writes `agentic/data/runtime/state/active-task.json` (cleared by `task-finish`/`task-fail`/`cancel`/`recover`). `.claude/settings.json` wires a `PreToolUse` hook (`agentic/kit/runtime/hooks/pretooluse_gate.py`, matcher `Bash|Write|Edit|NotebookEdit`) that, whenever that marker is present, calls `orch.guard(run_id, task_id, tool_name, command)` before the real tool runs: it re-checks the active task (pins, approvals, timeout), the current skill's capability ceiling against the tool's native level, and — for Bash — the same command allowlist, rejecting shell metacharacters outright rather than trusting a prefix match. A denial blocks the tool call with a reason Claude sees; every checked call is audited. With no active task, the hook allows everything untouched, so ad hoc (non-governed) Claude Code use in the project is unaffected. A hook or harness construction error fails open (allow) so a runtime bug cannot brick the session; only an explicit `guard` policy decision denies.
+**Claude Code integration:** installing with `--mode local-harness --agent claude`
+merges the packaged hooks into host settings. The tool hook checks the active task,
+pins, approvals, timeout, permissions, complete command arguments, and document/code
+write paths before Bash/Write/Edit/NotebookEdit calls. With no active marker, normal
+ad hoc use is unaffected. Unreadable markers, missing state, and internal gate errors
+deny matched calls until the operator diagnoses and recovers the task.
 
-This closes the routing gap, not the trust boundary above: `guard` checks permission and audits, it does not execute or sandbox the native tool call itself, and only Bash/Write/Edit/NotebookEdit are matched. Copying the kit into a project must also copy `.claude/settings.json` (merge if one exists) and `agentic/kit/runtime/hooks/` for the gate to apply there.
+The CLI, tool gate, session hook, and compaction hook share one path definition.
+CLI task markers are reserved exclusively and replaced atomically; finishing another
+run cannot clear the current marker. The session hook reports unknown state explicitly.
+The compaction hook persists checkpoint/audit together and reminds the agent to record
+remaining work. It does not block compaction if recording fails.
 
-**Midflight check on session start**: `.claude/settings.json` also wires a `SessionStart` hook (`agentic/kit/runtime/hooks/session_start_check.py`, matcher `*` — fires on startup/resume/clear alike) that runs before any other work. It checks, in order: (1) `agentic/data/runtime/state/active-task.json` — present means a `task-start` was never closed, so it reports the run/task to resume; (2) if absent, the default run DB (`agentic/data/runtime/state/agentic.db`) for the most recently updated run whose `status` is `RUNNING` or `BLOCKED` — reports it as a midflight run to resume via `show`/`recover` rather than starting a fresh one; (3) if neither, it reports that nothing is in flight and the next work item can start. The verdict is injected as `additionalContext`, so it's the first thing the agent reads. Reading state never blocks the session — any error falls back to "no active task" rather than failing closed.
+Only matched native tools are intercepted. These hooks are cooperative controls,
+not process isolation. Use a supervising terminal for lifecycle CLI commands and
+recovery when a native tool gate prevents them. CLI adapters use
+`task-start / call-tool / task-finish` directly.
 
-**Checkpoint before compaction**: `.claude/settings.json` also wires a `PreCompact` hook (`agentic/kit/runtime/hooks/precompact_checkpoint.py`, matcher `*` — fires before every compaction, manual or automatic; this is the closest local signal to "running out of context," there is no exposed budget percentage). If a governed task is active it writes a checkpoint + audit row recording the run's stage/status at that moment, so the DB shows "still open, last seen here" instead of going silent. It cannot deterministically know what docs changed or how to right-size remaining work — those need judgment — so it returns a `systemMessage` (the one hook field documented to reach Claude from every event) telling the agent to update every doc this session touched and to scope down to the smallest finishable subtask before the turn ends. It never blocks compaction; a read error falls into the same reminder rather than failing closed.
+Run `python3 agentic/kit/runtime/python/agentic_runtime/cli.py doctor` after adoption
+or upgrade. It separates installed configuration, isolated hook execution, storage
+checks, unavailable project tools, and platform limitations. Actual agent-platform
+invocation still needs one observed session.
+
+## Permissions and commands
+
+`agentic/kit/config/permissions.json` supplies independent per-skill permissions:
+
+| Permission | Responsibility |
+|---|---|
+| read | Inspect project files |
+| write_artifact | Write Markdown/JSON/YAML/text/CSV in project context, work-item, or artifact directories |
+| modify_code | Modify project source through write_file/native writes |
+| run_check | Execute an exactly registered local check |
+| preview | Execute an exactly registered preview command |
+
+Document generators can write artifacts without source-write permission.
+Implementation and baseline specialists can execute checks. Code review and QA do
+not receive source-write permission. Direct writes into Git internals are denied.
+
+Default tools declare their permission at registration. A custom tool can use
+`permission='run_check'` (for example); older custom registrations without an
+explicit permission retain their L0–L6 ceiling behavior. Production levels remain
+unsupported.
+
+Register complete argument lists in `agentic/kit/config/allowed-commands.json`:
+
+```json
+{
+  "commands": [
+    {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests"], "permission": "run_check"},
+    {"argv": ["flutter", "run", "-d", "reviewed-device-id", "--detach"], "permission": "preview"}
+  ]
+}
+```
+
+Replace the illustrative device ID and include the project's variant/environment
+arguments. Preview commands must finish within the command timeout; detached launch
+commands leave the app available for inspection. Interactive hot-reload sessions
+require a managed host adapter. No SDK or target is selected by the allowlist.
+
+`run_command` accepts read/check rules; `run_preview` accepts preview rules.
+Extra arguments are permitted only when the entire resulting argv matches a rule.
+Legacy string rules are accepted as exact check commands. Configure rules before
+starting a run: modifying permissions or commands invalidates existing pins.
 
 ## Cancel, recover, and upgrade
 
@@ -136,6 +193,13 @@ This closes the routing gap, not the trust boundary above: `guard` checks permis
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py cancel RUN_ID
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py recover RUN_ID --reason "Worker stopped; effects reconciled"
 ```
+
+If a marker is damaged, first stop its worker and reconcile the database from a
+supervising terminal. After recovering active tasks, use
+`python3 agentic/kit/runtime/python/agentic_runtime/cli.py repair-marker --workers-stopped --reason "Recovery evidence"`.
+Use `--db` before the subcommand for a custom database. The command refuses to clear
+a marker while that database has active tasks and retains the old marker as a
+recovery artifact. It is an operator acknowledgment, not automatic worker termination.
 
 A cancelled run is terminal. Recovery applies to an active marker left by an interrupted worker; stop that worker first. Recovery clears the marker and records interruption, without replaying a call or resetting attempt counts. Callbacks already running may finish externally even after cancellation; late results are not accepted.
 
@@ -147,4 +211,4 @@ Read the [upgrade notes](../../ADOPTION.md#upgrade-an-existing-installation) bef
 sh agentic/kit/scripts/validate-kit.sh
 ```
 
-Checks kit packaging (manifest, skill registry/capabilities consistency, markdown links) and runs `examples/runtime-demo.py` as an end-to-end dry-run smoke check. There is no automated behavioral test suite or eval harness for the runtime engine itself — routes/gates, retries, timing, capability denial, and idempotency are exercised only by this smoke run, not by dedicated tests. Verify a change to `agentic_runtime` manually before relying on it.
+Checks packaging, permissions, Markdown links and literal source paths, then runs the isolated smoke demo and behavioral tests for runtime policy, approvals, retries, cancellation, persistence rollback, hook execution, adoption, upgrades, installer recovery, and production evidence. The legacy delivery fixture reproduces a defect, modifies code, and executes review/QA with real checks and explicitly synthetic approvals. Run it separately with `python3 agentic/kit/examples/legacy-delivery.py`.

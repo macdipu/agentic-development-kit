@@ -19,7 +19,7 @@ A significant proposed architecture decision, alternatives, constraints, and rel
 
 ## Deliverable
 
-ADR artifact or a supported no-ADR-needed rationale, related decision IDs, and approval status. Write the artifact at `agentic/data/project-context/features/<work-item-id>/adr/ADR-XXX-title.md` (template: `agentic/templates/adr.md`).
+ADR artifact or a supported no-ADR-needed rationale, related decision IDs, and approval status. Write the artifact at `agentic/data/project-context/features/<work-item-id>/adr/ADR-XXX-title.md` (template: `agentic/kit/templates/adr.md`).
 
 ## Readiness boundary
 

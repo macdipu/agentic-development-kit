@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "stage": "OBSERVE",
+  "environment": "",
+  "owner": "",
+  "change_sha256": "",
+  "operations": [],
+  "controls": {},
+  "limits": {
+    "max_actions": 1,
+    "max_seconds": 300,
+    "max_affected_resources": 1
+  }
+}

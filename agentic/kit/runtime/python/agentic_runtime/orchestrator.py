@@ -11,7 +11,7 @@ from .policy import evaluate, workflow_route
 from .registry import SkillRegistry, ToolRegistry
 from .security import redact_value
 from .timing import durations, now
-from .tools import NATIVE_TOOL_CAPABILITY, bash_allowed
+from .tools import NATIVE_TOOL_CAPABILITY, command_rule, validate_write
 
 
 class Orchestrator:
@@ -24,6 +24,7 @@ class Orchestrator:
         self.tools = tools or ToolRegistry()
         self.policy = json.loads((self.kit_dir / 'config/platform.json').read_text())
         self.capabilities = json.loads((self.kit_dir / 'config/capabilities.json').read_text())['defaults']
+        self.permissions = json.loads((self.kit_dir / 'config/permissions.json').read_text())
         self.allowed_commands = json.loads((self.kit_dir / 'config/allowed-commands.json').read_text())['commands']
         self.loaded_config_hash = self._config_hash()
         for key in ('max_agent_retries', 'max_task_seconds', 'max_tool_calls_per_task'):
@@ -38,7 +39,7 @@ class Orchestrator:
             raise ValueError('require_uat_approval must be boolean')
 
     def _config_hash(self):
-        data = b''.join((self.kit_dir / 'config' / name).read_bytes() for name in ('platform.json', 'capabilities.json', 'skill-registry.json', 'allowed-commands.json'))
+        data = b''.join((self.kit_dir / 'config' / name).read_bytes() for name in ('platform.json', 'capabilities.json', 'permissions.json', 'skill-registry.json', 'allowed-commands.json'))
         return hashlib.sha256(data).hexdigest()
 
     def _run(self, run_id, allow_terminal=False):
@@ -307,18 +308,27 @@ class Orchestrator:
             self.fail_task(run_id, task['id'], exc)
             raise
 
-    def guard(self, run_id, task_id, tool_name, command=None):
+    def guard(self, run_id, task_id, tool_name, command=None, tool_input=None):
         """Permission check for a native coding-agent tool call (e.g. a PreToolUse hook); never executes or replays it."""
         with self.store.transaction():
             run, task = self._active(run_id, task_id)
             if tool_name not in NATIVE_TOOL_CAPABILITY:
                 raise PermissionError('Unrecognized native tool: ' + tool_name)
-            level, _side_effecting = NATIVE_TOOL_CAPABILITY[tool_name]
-            ceiling = self.capabilities.get(task['skill'], 'L0')
-            if int(level[1:]) > int(ceiling[1:]):
-                raise PermissionError('Native tool capability denied: ' + tool_name)
-            if tool_name == 'Bash' and not bash_allowed(command, self.allowed_commands):
-                raise PermissionError('Command not in the governed allowlist: ' + str(command))
+            _, side_effecting = NATIVE_TOOL_CAPABILITY[tool_name]
+            permissions = self.permissions.get(task['skill'], [])
+            required = 'read'
+            if tool_name == 'Bash':
+                _, required = command_rule(command, [], self.allowed_commands)
+            elif side_effecting:
+                path = (tool_input or {}).get('file_path') or (tool_input or {}).get('notebook_path')
+                if not path:
+                    raise PermissionError('Native writes require an explicit file path')
+                required = 'modify_code' if 'modify_code' in permissions else 'write_artifact'
+                validate_write(run.metadata['repo'], path, artifact_only=required == 'write_artifact')
+            if required not in permissions:
+                raise PermissionError('Native tool permission denied: ' + required)
+            if side_effecting and run.dry_run:
+                raise PermissionError('Native side effects are disabled in dry-run; use the gateway for simulation')
             if task['tool_calls'] >= self.policy['max_tool_calls_per_task']:
                 raise ValueError('Tool call budget exhausted')
             task['tool_calls'] += 1
@@ -341,7 +351,7 @@ class Orchestrator:
         # Reserve before invoking: a crash leaves an unknown outcome, never an automatic replay.
         with self.store.transaction():
             run, task = self._active(run_id, task_id)
-            if not self.tools.allowed(name, self.capabilities.get(task['skill'])):
+            if not self.tools.allowed(name, self.capabilities.get(task['skill']), self.permissions.get(task['skill'], [])):
                 raise PermissionError('Tool capability denied: ' + name)
             tool = self.tools.tools[name]
             if task['tool_calls'] >= self.policy['max_tool_calls_per_task']:

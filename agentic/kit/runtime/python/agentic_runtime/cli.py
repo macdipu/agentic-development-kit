@@ -3,6 +3,7 @@ import argparse
 import json
 import sqlite3
 import sys
+import uuid
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -12,21 +13,9 @@ from agentic_runtime.orchestrator import Orchestrator
 from agentic_runtime.policy import PLANNING, STAGES, WORK_TYPES
 from agentic_runtime.store import RuntimeStore
 from agentic_runtime.tools import NATIVE_TOOL_CAPABILITY, build_default_tools
-
-KIT = HERE.parents[2]
-AGENTIC = KIT.parent
-DB = AGENTIC / 'data/runtime/state/agentic.db'
-ACTIVE_TASK_POINTER = AGENTIC / 'data/runtime/state/active-task.json'
-
-
-def _write_active_task(db, run_id, task_id):
-    ACTIVE_TASK_POINTER.parent.mkdir(parents=True, exist_ok=True)
-    ACTIVE_TASK_POINTER.write_text(json.dumps({'db': str(Path(db).resolve()), 'run_id': run_id, 'task_id': task_id}))
-
-
-def _clear_active_task():
-    ACTIVE_TASK_POINTER.unlink(missing_ok=True)
-
+from agentic_runtime.paths import KIT, AGENTIC, DB, ACTIVE_TASK_POINTER
+from agentic_runtime import markers
+from agentic_runtime.timing import now
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Local governed workflow runtime (trusted operator)')
@@ -34,6 +23,13 @@ def main(argv=None):
     sub = parser.add_subparsers(dest='cmd', required=True)
     sub.add_parser('init')
     sub.add_parser('list')
+    doctor = sub.add_parser('doctor', help='Check installed modes, tools, storage, and hooks')
+    doctor.add_argument('--repo', type=Path, default=AGENTIC.parent)
+    production = sub.add_parser('production-check', help='Validate bound readiness evidence; does not authorize or deploy')
+    production.add_argument('--file', type=Path, required=True)
+    repair = sub.add_parser('repair-marker', help='Clear a damaged marker after database recovery and worker shutdown')
+    repair.add_argument('--workers-stopped', action='store_true', required=True)
+    repair.add_argument('--reason', required=True)
     start = sub.add_parser('start')
     start.add_argument('--project', required=True)
     start.add_argument('--type', choices=sorted(WORK_TYPES), required=True)
@@ -91,9 +87,20 @@ def main(argv=None):
     guard.add_argument('task_id')
     guard.add_argument('--tool', required=True, choices=sorted(NATIVE_TOOL_CAPABILITY))
     guard.add_argument('--command', help='The Bash command text, required when --tool Bash')
+    guard.add_argument('--input', default='{}', help='JSON native tool input including write paths')
     args = parser.parse_args(argv)
     store = None
     try:
+        if args.cmd == 'production-check':
+            from agentic_runtime.production import check_readiness
+            report = check_readiness(json.loads(args.file.read_text()), args.file.resolve().parent)
+            print(json.dumps(report, indent=2))
+            return 0 if report['status'] == 'EVIDENCE_COMPLETE' else 1
+        if args.cmd == 'doctor':
+            from agentic_runtime.doctor import diagnose
+            report = diagnose(args.repo)
+            print(json.dumps(report, indent=2))
+            return 0 if report['ok'] else 1
         store = RuntimeStore(str(args.db))
         orch = Orchestrator(store, KIT)
         if args.cmd == 'init':
@@ -122,10 +129,33 @@ def main(argv=None):
         elif args.cmd in {'reopen', 'recover'}:
             output = getattr(orch, args.cmd)(args.run_id, args.reason)
             if args.cmd == 'recover':
-                _clear_active_task()
+                markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id)
+        elif args.cmd == 'repair-marker':
+            if not args.reason.strip() or any(json.loads(r['metadata_json']).get('active_task') for r in store.list_runs()):
+                raise ValueError('Recover active database tasks before repairing their marker')
+            # Explicit operator recovery; retain damaged contents for diagnosis.
+            if ACTIVE_TASK_POINTER.exists():
+                try:
+                    pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
+                except ValueError:
+                    pointer = {}
+                if isinstance(pointer, dict) and pointer.get('db') and Path(pointer['db']).resolve() != args.db.resolve():
+                    raise ValueError('Marker belongs to a different database; select it explicitly with --db')
+                backup = ACTIVE_TASK_POINTER.with_name('active-task.recovered-' + uuid.uuid4().hex + '.json')
+                ACTIVE_TASK_POINTER.rename(backup)
+                store.audit('marker-recovery', 'MARKER_RECOVERED', {'reason': args.reason, 'backup': str(backup)}, now())
+            output = {'repaired': True}
         elif args.cmd == 'task-start':
-            task, context = orch.start_task(args.run_id, args.skill)
-            _write_active_task(args.db, args.run_id, task['id'])
+            markers.reserve(ACTIVE_TASK_POINTER, args.db, args.run_id)
+            task = None
+            try:
+                task, context = orch.start_task(args.run_id, args.skill)
+                markers.activate(ACTIVE_TASK_POINTER, args.db, args.run_id, task['id'])
+            except BaseException as exc:
+                if task:
+                    orch.fail_task(args.run_id, task['id'], exc)
+                markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id)
+                raise
             output = {'task_id': task['id'], 'context': context}
         elif args.cmd == 'call-tool':
             run = store.get_run(args.run_id)
@@ -136,13 +166,13 @@ def main(argv=None):
         elif args.cmd == 'task-finish':
             submitted = json.loads(args.file.read_text())
             output = orch.finish_task(args.run_id, args.task_id, submitted)
-            _clear_active_task()
+            markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id, args.task_id)
         elif args.cmd == 'task-fail':
             orch.fail_task(args.run_id, args.task_id, args.error)
-            _clear_active_task()
+            markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id, args.task_id)
             output = {'task_id': args.task_id, 'failed': True}
         elif args.cmd == 'guard':
-            output = orch.guard(args.run_id, args.task_id, args.tool, args.command)
+            output = orch.guard(args.run_id, args.task_id, args.tool, args.command, json.loads(args.input))
         elif args.cmd == 'impact':
             edges = json.loads(args.edges.read_text())
             if not isinstance(edges, dict) or not all(isinstance(v, list) for v in edges.values()):
@@ -154,7 +184,7 @@ def main(argv=None):
             output = {'modules': graph.closure(args.modules)}
         else:
             output = orch.cancel(args.run_id)
-            _clear_active_task()
+            markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id)
         print(json.dumps(output.to_dict() if hasattr(output, 'to_dict') else output, indent=2))
         return 0
     except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:

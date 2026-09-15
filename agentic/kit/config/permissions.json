@@ -1,0 +1,148 @@
+{
+  "business-requirement-analyzer": [
+    "read",
+    "write_artifact"
+  ],
+  "technical-architecture-planner": [
+    "read",
+    "write_artifact"
+  ],
+  "implementation-agent": [
+    "read",
+    "write_artifact",
+    "run_check",
+    "modify_code"
+  ],
+  "automated-qa-agent": [
+    "read",
+    "write_artifact",
+    "run_check"
+  ],
+  "device-preview-agent": [
+    "read",
+    "write_artifact",
+    "run_check",
+    "preview"
+  ],
+  "release-readiness-agent": [
+    "read",
+    "write_artifact"
+  ],
+  "prompt-intake-adapter": [
+    "read",
+    "write_artifact"
+  ],
+  "document-intake-adapter": [
+    "read",
+    "write_artifact"
+  ],
+  "intake-change-classifier": [
+    "read",
+    "write_artifact"
+  ],
+  "agentic-sdlc-orchestrator": [
+    "read",
+    "write_artifact"
+  ],
+  "project-discovery-agent": [
+    "read",
+    "write_artifact",
+    "run_check"
+  ],
+  "architecture-reverse-engineer": [
+    "read",
+    "write_artifact"
+  ],
+  "api-contract-discovery-agent": [
+    "read",
+    "write_artifact"
+  ],
+  "database-discovery-agent": [
+    "read",
+    "write_artifact"
+  ],
+  "runtime-discovery-agent": [
+    "read",
+    "write_artifact",
+    "run_check"
+  ],
+  "user-flow-discovery-agent": [
+    "read",
+    "write_artifact"
+  ],
+  "history-analysis-agent": [
+    "read",
+    "write_artifact",
+    "run_check"
+  ],
+  "requirement-reconstruction-agent": [
+    "read",
+    "write_artifact"
+  ],
+  "baseline-verifier": [
+    "read",
+    "write_artifact"
+  ],
+  "test-baseline-agent": [
+    "read",
+    "write_artifact",
+    "run_check"
+  ],
+  "brownfield-risk-analyzer": [
+    "read",
+    "write_artifact"
+  ],
+  "srs-generator": [
+    "read",
+    "write_artifact"
+  ],
+  "requirement-ui-verifier": [
+    "read",
+    "write_artifact"
+  ],
+  "change-impact-analyzer": [
+    "read",
+    "write_artifact"
+  ],
+  "adr-generator": [
+    "read",
+    "write_artifact"
+  ],
+  "technical-spec-generator": [
+    "read",
+    "write_artifact"
+  ],
+  "technical-readiness-verifier": [
+    "read",
+    "write_artifact"
+  ],
+  "work-item-level-classifier": [
+    "read",
+    "write_artifact"
+  ],
+  "sprint-planner": [
+    "read",
+    "write_artifact"
+  ],
+  "sprint-readiness-verifier": [
+    "read",
+    "write_artifact"
+  ],
+  "effort-estimation-agent": [
+    "read",
+    "write_artifact"
+  ],
+  "epic-verifier": [
+    "read",
+    "write_artifact"
+  ],
+  "task-breakdown-agent": [
+    "read",
+    "write_artifact"
+  ],
+  "code-review-agent": [
+    "read",
+    "write_artifact",
+    "run_check"
+  ]
+}

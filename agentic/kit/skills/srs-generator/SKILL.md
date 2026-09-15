@@ -19,7 +19,7 @@ Verified requirement list, UI/flow references, constraints, and explicit source 
 
 ## Deliverable
 
-SRS artifact, source/acceptance traceability, changed sections, and unresolved specification questions. Write or update the artifact at `agentic/data/project-context/features/<work-item-id>/SRS.md` (template: `agentic/templates/srs.md`).
+SRS artifact, source/acceptance traceability, changed sections, and unresolved specification questions. Write or update the artifact at `agentic/data/project-context/features/<work-item-id>/SRS.md` (template: `agentic/kit/templates/srs.md`).
 
 ## Readiness boundary
 

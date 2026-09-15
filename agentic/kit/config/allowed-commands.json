@@ -1,12 +1,7 @@
 {
   "commands": [
-    "flutter analyze",
-    "flutter test",
-    "flutter pub get",
-    "dart format --output=none --set-exit-if-changed .",
-    "dart pub run dart_fix --apply --dry-run",
-    "git status",
-    "git diff",
-    "git log"
+    {"argv": ["git", "status", "--short"], "permission": "read"},
+    {"argv": ["git", "diff", "--check"], "permission": "read"},
+    {"argv": ["python3", "-m", "unittest", "discover", "-s", "agentic/kit/runtime/tests"], "permission": "run_check"}
   ]
 }
