@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """One-shot, idempotent activation entry point for the agentic development kit.
 
-Copies the kit into a target project (if it isn't already there), sets project
-identity, and runs the same validation/init steps documented in ADOPTION.md and
-runtime/README.md -- then reports, per layer, whether the kit is actually active
-rather than just present. Never overwrites AGENTS.md/CLAUDE.md/.gitignore
-content; those need a human merge decision. Re-running is safe: existing
-project-context files and an existing agentic/ tree are left alone unless
---force is passed.
+Copies the reusable kit (agentic/kit/) into a target project, scaffolds a
+fresh agentic/data/ (never this repo's own accumulated project-context,
+work-items, or project identity -- see scaffold_data_tree), sets project
+identity, and runs the same validation/init steps documented in ADOPTION.md
+and runtime/README.md -- then reports, per layer, whether the kit is
+actually active rather than just present. Never overwrites
+AGENTS.md/CLAUDE.md/.gitignore content; those need a human merge decision.
+Re-running is safe: an existing agentic/kit/ is left alone unless --force is
+passed (which backs it up first), and agentic/data/ contents are never
+overwritten, only filled in where missing.
 """
 import argparse
 import json
@@ -28,19 +31,36 @@ def log(message):
 
 
 def copy_kit_tree(target_kit_dir, force):
-    if target_kit_dir.exists():
+    target = target_kit_dir / 'kit'
+    source = KIT_SOURCE / 'kit'
+    if target.exists():
         if not force:
-            log(f'SKIP  agentic/ already present at {target_kit_dir}; pass --force to overwrite (backs up first)')
+            log(f'SKIP  agentic/kit/ already present at {target}; pass --force to overwrite (backs up first)')
             return
-        backup = target_kit_dir.with_name('agentic.bak-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
-        shutil.move(str(target_kit_dir), str(backup))
-        log(f'BACKUP existing agentic/ moved to {backup.name}')
+        backup = target.with_name('kit.bak-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
+        shutil.move(str(target), str(backup))
+        log(f'BACKUP existing agentic/kit/ moved to {backup.name}')
 
     def ignore(_dir, names):
         return [n for n in names if n in EXCLUDE_DIR_NAMES]
 
-    shutil.copytree(KIT_SOURCE, target_kit_dir, ignore=ignore)
-    log(f'COPY  agentic/ -> {target_kit_dir}')
+    shutil.copytree(source, target, ignore=ignore)
+    log(f'COPY  agentic/kit/ -> {target}')
+
+
+DATA_SCAFFOLD_DOCS = ['README.md', 'project-context/features/README.md']
+
+
+def scaffold_data_tree(target_kit_dir):
+    source_data = KIT_SOURCE / 'data'
+    target_data = target_kit_dir / 'data'
+    for rel in DATA_SCAFFOLD_DOCS:
+        dest = target_data / rel
+        if dest.exists():
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_data / rel, dest)
+        log(f'COPY  agentic/data/{rel}')
 
 
 def copy_skill(target_root, force):
@@ -209,6 +229,7 @@ def main(argv=None):
         merge_gitignore(target_root)
         copy_skill(target_root, args.force)
 
+    scaffold_data_tree(target_kit_dir)
     write_project_identity(target_kit_dir, args.project, args.type)
 
     ok = run([sys.executable, str(target_kit_dir / 'kit/scripts/validate_structure.py'), '--write-manifests'], target_root)
