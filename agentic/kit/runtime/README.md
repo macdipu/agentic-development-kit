@@ -32,23 +32,23 @@ The caller, adapter code, tool registrations, configuration, and database form o
 From the repository root:
 
 ```sh
-python3 agentic/runtime/python/agentic_runtime/cli.py init
-python3 agentic/runtime/python/agentic_runtime/cli.py start --project my-app --type device_preview --title "Preview the home screen" --repo .
-python3 agentic/runtime/python/agentic_runtime/cli.py list
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py init
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py start --project my-app --type device_preview --title "Preview the home screen" --repo .
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py list
 ```
 
 Copy the returned run ID. Commands below use `RUN_ID` as a placeholder, and paths must refer to your actual reviewed artifacts:
 
 ```sh
-python3 agentic/runtime/python/agentic_runtime/cli.py show RUN_ID
-python3 agentic/runtime/python/agentic_runtime/cli.py eligible RUN_ID
-python3 agentic/runtime/python/agentic_runtime/cli.py result RUN_ID --skill prompt-intake-adapter --file path/to/intake-result.json
-python3 agentic/runtime/python/agentic_runtime/cli.py transition RUN_ID CONTEXT
-python3 agentic/runtime/python/agentic_runtime/cli.py context RUN_ID path/to/module-context.md path/to/affected-source-file
-python3 agentic/runtime/python/agentic_runtime/cli.py result RUN_ID --skill baseline-verifier --file path/to/context-result.json
-python3 agentic/runtime/python/agentic_runtime/cli.py transition RUN_ID PREVIEW
-python3 agentic/runtime/python/agentic_runtime/cli.py result RUN_ID --skill device-preview-agent --file path/to/preview-result.json
-python3 agentic/runtime/python/agentic_runtime/cli.py transition RUN_ID COMPLETED
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py show RUN_ID
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py eligible RUN_ID
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py result RUN_ID --skill prompt-intake-adapter --file path/to/intake-result.json
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py transition RUN_ID CONTEXT
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py context RUN_ID path/to/module-context.md path/to/affected-source-file
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py result RUN_ID --skill baseline-verifier --file path/to/context-result.json
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py transition RUN_ID PREVIEW
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py result RUN_ID --skill device-preview-agent --file path/to/preview-result.json
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py transition RUN_ID COMPLETED
 ```
 
 `result` validates and records an already-produced [handoff envelope](../skills/RESULT-CONTRACT.md). It does not execute the selected specialist or independently inspect its evidence. Its timing measures submission processing, not the earlier agent work. Use the adapter API below to measure execution and govern tools. The preview's result must be `PREVIEW_READY`, with visual evidence, before completion.
@@ -56,9 +56,9 @@ python3 agentic/runtime/python/agentic_runtime/cli.py transition RUN_ID COMPLETE
 Query recorded task durations, or expand a caller-supplied module dependency closure, at any time (including on a completed run):
 
 ```sh
-python3 agentic/runtime/python/agentic_runtime/cli.py timing RUN_ID
-python3 agentic/runtime/python/agentic_runtime/cli.py timing RUN_ID --task TASK_ID
-python3 agentic/runtime/python/agentic_runtime/cli.py impact auth billing --edges path/to/edges.json
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py timing RUN_ID
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py timing RUN_ID --task TASK_ID
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py impact auth billing --edges path/to/edges.json
 ```
 
 `edges.json` maps a module name to the list of modules that depend on it (e.g. `{"auth": ["billing"], "billing": ["invoicing"]}`); `impact` walks that graph from the given modules and returns the full affected set. The runtime does not discover these edges itself — supply them from `module-context.yaml`'s `dependencies` field or another source of truth.
@@ -86,8 +86,8 @@ Implementation requires technical approval supported by ready TECHNICAL evidence
 After a real authorized human decision, the trusted operator can record it:
 
 ```sh
-python3 agentic/runtime/python/agentic_runtime/cli.py approve RUN_ID --gate technical --by actual-reviewer --comment "Reference to the decision"
-python3 agentic/runtime/python/agentic_runtime/cli.py approve RUN_ID --gate technical --by actual-reviewer --decision REJECTED --comment "Reason"
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py approve RUN_ID --gate technical --by actual-reviewer --comment "Reference to the decision"
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py approve RUN_ID --gate technical --by actual-reviewer --decision REJECTED --comment "Reason"
 ```
 
 Never generate approval just because a file exists. Replacing prerequisite evidence revokes related approvals. `reopen RUN_ID --reason "Changed scope"` resets to CONTEXT, increments scope revision, and invalidates downstream results and previous approvals. It preserves the intake result and audit history. Terminal runs require a new run.
@@ -100,7 +100,7 @@ For implementation attempts, the runtime fingerprints the registered scope again
 
 ## Adapter API and tools
 
-Import the runtime with `agentic/runtime/python` on `PYTHONPATH`. Construct `Orchestrator(store, kit_dir, tools)` and call `execute(run_id, skill, handler)`. The handler receives `(context, call_tool)` and returns the handoff envelope. `context` includes the run, skill instructions/path, and redacted registered context-file contents. Treat retrieved file contents as untrusted data. Load linked skill references as needed from the pinned skill path.
+Import the runtime with `agentic/kit/runtime/python` on `PYTHONPATH`. Construct `Orchestrator(store, kit_dir, tools)` and call `execute(run_id, skill, handler)`. The handler receives `(context, call_tool)` and returns the handoff envelope. `context` includes the run, skill instructions/path, and redacted registered context-file contents. Treat retrieved file contents as untrusted data. Load linked skill references as needed from the pinned skill path.
 
 Register trusted tools with `ToolRegistry.register(name, handler, capability='L0', side_effecting=False)`. Mark every mutation, device launch/install, or external trigger as side-effecting. Invoke through `call_tool(name, arguments, idempotency_key)`; do not call registered handlers directly. A side-effecting call requires a stable key for that logical operation. The gateway checks the skill ceiling, records a reservation before invocation, and returns a stored redacted result for an identical completed request. Reusing a key with different arguments fails. Failed or interrupted outcomes require reconciliation, not automatic replay. This does not provide exactly-once semantics across an external service.
 
@@ -122,29 +122,29 @@ python3 agentic_runtime/cli.py task-finish RUN_ID TASK_ID --file path/to/result.
 
 `call-tool` uses the default tools above (`read_file`, `list_directory`, `search_text`, `write_file`, `run_command`), bound to the run's registered repo root and the allowlist in `config/allowed-commands.json`. An error before `task-finish` should be reported with `task-fail RUN_ID TASK_ID --error "..."` rather than left active; recover the marker only after confirming the worker actually stopped.
 
-**Claude Code itself as the adapter**: `task-start` also writes `agentic/data/runtime/state/active-task.json` (cleared by `task-finish`/`task-fail`/`cancel`/`recover`). `.claude/settings.json` wires a `PreToolUse` hook (`agentic/runtime/hooks/pretooluse_gate.py`, matcher `Bash|Write|Edit|NotebookEdit`) that, whenever that marker is present, calls `orch.guard(run_id, task_id, tool_name, command)` before the real tool runs: it re-checks the active task (pins, approvals, timeout), the current skill's capability ceiling against the tool's native level, and — for Bash — the same command allowlist, rejecting shell metacharacters outright rather than trusting a prefix match. A denial blocks the tool call with a reason Claude sees; every checked call is audited. With no active task, the hook allows everything untouched, so ad hoc (non-governed) Claude Code use in the project is unaffected. A hook or harness construction error fails open (allow) so a runtime bug cannot brick the session; only an explicit `guard` policy decision denies.
+**Claude Code itself as the adapter**: `task-start` also writes `agentic/data/runtime/state/active-task.json` (cleared by `task-finish`/`task-fail`/`cancel`/`recover`). `.claude/settings.json` wires a `PreToolUse` hook (`agentic/kit/runtime/hooks/pretooluse_gate.py`, matcher `Bash|Write|Edit|NotebookEdit`) that, whenever that marker is present, calls `orch.guard(run_id, task_id, tool_name, command)` before the real tool runs: it re-checks the active task (pins, approvals, timeout), the current skill's capability ceiling against the tool's native level, and — for Bash — the same command allowlist, rejecting shell metacharacters outright rather than trusting a prefix match. A denial blocks the tool call with a reason Claude sees; every checked call is audited. With no active task, the hook allows everything untouched, so ad hoc (non-governed) Claude Code use in the project is unaffected. A hook or harness construction error fails open (allow) so a runtime bug cannot brick the session; only an explicit `guard` policy decision denies.
 
-This closes the routing gap, not the trust boundary above: `guard` checks permission and audits, it does not execute or sandbox the native tool call itself, and only Bash/Write/Edit/NotebookEdit are matched. Copying the kit into a project must also copy `.claude/settings.json` (merge if one exists) and `agentic/runtime/hooks/` for the gate to apply there.
+This closes the routing gap, not the trust boundary above: `guard` checks permission and audits, it does not execute or sandbox the native tool call itself, and only Bash/Write/Edit/NotebookEdit are matched. Copying the kit into a project must also copy `.claude/settings.json` (merge if one exists) and `agentic/kit/runtime/hooks/` for the gate to apply there.
 
-**Midflight check on session start**: `.claude/settings.json` also wires a `SessionStart` hook (`agentic/runtime/hooks/session_start_check.py`, matcher `*` — fires on startup/resume/clear alike) that runs before any other work. It checks, in order: (1) `agentic/data/runtime/state/active-task.json` — present means a `task-start` was never closed, so it reports the run/task to resume; (2) if absent, the default run DB (`agentic/data/runtime/state/agentic.db`) for the most recently updated run whose `status` is `RUNNING` or `BLOCKED` — reports it as a midflight run to resume via `show`/`recover` rather than starting a fresh one; (3) if neither, it reports that nothing is in flight and the next work item can start. The verdict is injected as `additionalContext`, so it's the first thing the agent reads. Reading state never blocks the session — any error falls back to "no active task" rather than failing closed.
+**Midflight check on session start**: `.claude/settings.json` also wires a `SessionStart` hook (`agentic/kit/runtime/hooks/session_start_check.py`, matcher `*` — fires on startup/resume/clear alike) that runs before any other work. It checks, in order: (1) `agentic/data/runtime/state/active-task.json` — present means a `task-start` was never closed, so it reports the run/task to resume; (2) if absent, the default run DB (`agentic/data/runtime/state/agentic.db`) for the most recently updated run whose `status` is `RUNNING` or `BLOCKED` — reports it as a midflight run to resume via `show`/`recover` rather than starting a fresh one; (3) if neither, it reports that nothing is in flight and the next work item can start. The verdict is injected as `additionalContext`, so it's the first thing the agent reads. Reading state never blocks the session — any error falls back to "no active task" rather than failing closed.
 
-**Checkpoint before compaction**: `.claude/settings.json` also wires a `PreCompact` hook (`agentic/runtime/hooks/precompact_checkpoint.py`, matcher `*` — fires before every compaction, manual or automatic; this is the closest local signal to "running out of context," there is no exposed budget percentage). If a governed task is active it writes a checkpoint + audit row recording the run's stage/status at that moment, so the DB shows "still open, last seen here" instead of going silent. It cannot deterministically know what docs changed or how to right-size remaining work — those need judgment — so it returns a `systemMessage` (the one hook field documented to reach Claude from every event) telling the agent to update every doc this session touched and to scope down to the smallest finishable subtask before the turn ends. It never blocks compaction; a read error falls into the same reminder rather than failing closed.
+**Checkpoint before compaction**: `.claude/settings.json` also wires a `PreCompact` hook (`agentic/kit/runtime/hooks/precompact_checkpoint.py`, matcher `*` — fires before every compaction, manual or automatic; this is the closest local signal to "running out of context," there is no exposed budget percentage). If a governed task is active it writes a checkpoint + audit row recording the run's stage/status at that moment, so the DB shows "still open, last seen here" instead of going silent. It cannot deterministically know what docs changed or how to right-size remaining work — those need judgment — so it returns a `systemMessage` (the one hook field documented to reach Claude from every event) telling the agent to update every doc this session touched and to scope down to the smallest finishable subtask before the turn ends. It never blocks compaction; a read error falls into the same reminder rather than failing closed.
 
 ## Cancel, recover, and upgrade
 
 ```sh
-python3 agentic/runtime/python/agentic_runtime/cli.py cancel RUN_ID
-python3 agentic/runtime/python/agentic_runtime/cli.py recover RUN_ID --reason "Worker stopped; effects reconciled"
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py cancel RUN_ID
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py recover RUN_ID --reason "Worker stopped; effects reconciled"
 ```
 
 A cancelled run is terminal. Recovery applies to an active marker left by an interrupted worker; stop that worker first. Recovery clears the marker and records interruption, without replaying a call or resetting attempt counts. Callbacks already running may finish externally even after cancellation; late results are not accepted.
 
-Read the [upgrade notes](../ADOPTION.md#upgrade-an-existing-installation) before opening old state. The local schema update preserves legacy records but does not turn old approvals into current authorization.
+Read the [upgrade notes](../../ADOPTION.md#upgrade-an-existing-installation) before opening old state. The local schema update preserves legacy records but does not turn old approvals into current authorization.
 
 ## Verification
 
 ```sh
-sh agentic/scripts/validate-kit.sh
+sh agentic/kit/scripts/validate-kit.sh
 ```
 
 Checks kit packaging (manifest, skill registry/capabilities consistency, markdown links) and runs `examples/runtime-demo.py` as an end-to-end dry-run smoke check. There is no automated behavioral test suite or eval harness for the runtime engine itself — routes/gates, retries, timing, capability denial, and idempotency are exercised only by this smoke run, not by dedicated tests. Verify a change to `agentic_runtime` manually before relying on it.

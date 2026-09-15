@@ -16,7 +16,7 @@ agentic/data/project-context/features/<WORK-ITEM-ID>/
     └── TASK-XXX.md       # from task-breakdown-agent
 ```
 
-Templates for each file type live in `agentic/templates/` (`brd.md`, `srs.md`, `architecture.md`,
+Templates for each file type live in `agentic/kit/templates/` (`brd.md`, `srs.md`, `architecture.md`,
 `tech-spec.md`, `adr.md`, `task.md`).
 
 Rules:
@@ -32,5 +32,5 @@ Rules:
 - File existence is not approval. Status fields inside each doc (Draft/Proposed/READY/etc.)
   track drafting state, not human sign-off.
 - After adding or removing files under `agentic/`, regenerate the kit manifest:
-  `python3 agentic/scripts/validate_structure.py --write-manifests` (kit repo only, not
+  `python3 agentic/kit/scripts/validate_structure.py --write-manifests` (kit repo only, not
   required in a host project that has copied the kit in).

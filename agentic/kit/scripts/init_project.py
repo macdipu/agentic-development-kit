@@ -17,7 +17,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-KIT_REPO_ROOT = Path(__file__).resolve().parents[2]
+KIT_REPO_ROOT = Path(__file__).resolve().parents[3]
 KIT_SOURCE = KIT_REPO_ROOT / 'agentic'
 EXCLUDE_DIR_NAMES = {'state', 'artifacts', '__pycache__'}
 GITIGNORE_LINES = ['/agentic/data/runtime/state/', '/agentic/data/runtime/logs/', '/agentic/data/artifacts/', '__pycache__/', '*.py[cod]']
@@ -172,11 +172,11 @@ def verify(target_root):
             session_start_wired = False
             precompact_wired = False
     checks.append(('PreToolUse gate hook wired in .claude/settings.json', hook_wired))
-    checks.append(('gate hook script present', (target_kit_dir / 'runtime/hooks/pretooluse_gate.py').is_file()))
+    checks.append(('gate hook script present', (target_kit_dir / 'kit/runtime/hooks/pretooluse_gate.py').is_file()))
     checks.append(('SessionStart midflight-check hook wired in .claude/settings.json', session_start_wired))
-    checks.append(('midflight-check script present', (target_kit_dir / 'runtime/hooks/session_start_check.py').is_file()))
+    checks.append(('midflight-check script present', (target_kit_dir / 'kit/runtime/hooks/session_start_check.py').is_file()))
     checks.append(('PreCompact checkpoint hook wired in .claude/settings.json', precompact_wired))
-    checks.append(('precompact-checkpoint script present', (target_kit_dir / 'runtime/hooks/precompact_checkpoint.py').is_file()))
+    checks.append(('precompact-checkpoint script present', (target_kit_dir / 'kit/runtime/hooks/precompact_checkpoint.py').is_file()))
     checks.append(('runtime db initialized', (target_kit_dir / 'data/runtime/state/agentic.db').is_file()))
     checks.append(('/agentic-init skill available for re-runs', (target_root / '.claude/skills/agentic-init/SKILL.md').is_file()))
     log('')
@@ -211,9 +211,9 @@ def main(argv=None):
 
     write_project_identity(target_kit_dir, args.project, args.type)
 
-    ok = run([sys.executable, str(target_kit_dir / 'scripts/validate_structure.py'), '--write-manifests'], target_root)
-    ok = run(['sh', str(target_kit_dir / 'scripts/validate-kit.sh')], target_root) and ok
-    ok = run([sys.executable, str(target_kit_dir / 'runtime/python/agentic_runtime/cli.py'), 'init'], target_root) and ok
+    ok = run([sys.executable, str(target_kit_dir / 'kit/scripts/validate_structure.py'), '--write-manifests'], target_root)
+    ok = run(['sh', str(target_kit_dir / 'kit/scripts/validate-kit.sh')], target_root) and ok
+    ok = run([sys.executable, str(target_kit_dir / 'kit/runtime/python/agentic_runtime/cli.py'), 'init'], target_root) and ok
 
     active = verify(target_root)
     if not (ok and active):

@@ -33,11 +33,11 @@ Never put generated or per-project content in the kit folders above `data/`; nev
 
 ## Usage
 
-Start with the [adoption guide](ADOPTION.md) for installation and upgrades, and the [runtime guide](runtime/README.md) for executable commands and capability limits. All specialists use the shared [handoff contract](skills/RESULT-CONTRACT.md).
+Start with the [adoption guide](ADOPTION.md) for installation and upgrades, and the [runtime guide](kit/runtime/README.md) for executable commands and capability limits. All specialists use the shared [handoff contract](kit/skills/RESULT-CONTRACT.md).
 
 Keep `AGENTS.md` and `CLAUDE.md` at the repository root. The host project's existing root `README.md` remains the project README.
 
-The kit supports both prompt-first and document-first intake. Both are normalized into the same canonical work-item flow. Derived artifacts (SRS, architecture, tech spec, ADRs, tasks) are stored per work item under `agentic/data/project-context/features/<work-item-id>/` — see that folder's `README.md` for the layout and `agentic/templates/` for each artifact's template.
+The kit supports both prompt-first and document-first intake. Both are normalized into the same canonical work-item flow. Derived artifacts (SRS, architecture, tech spec, ADRs, tasks) are stored per work item under `agentic/data/project-context/features/<work-item-id>/` — see that folder's `README.md` for the layout and `agentic/kit/templates/` for each artifact's template.
 
 ```text
 Prompt ------------------+
@@ -466,9 +466,9 @@ Timing may be aggregated by Task, Feature/CR, Workflow, Agent, Skill, or Project
 
 # Production Harness Runtime
 
-The kit includes a small provider-neutral reference runtime under `agentic/runtime/`. It turns core governance concepts into executable behavior instead of leaving them only as documentation.
+The kit includes a small provider-neutral reference runtime under `agentic/kit/runtime/`. It turns core governance concepts into executable behavior instead of leaving them only as documentation.
 
-It includes atomic workflow/checkpoint/audit persistence, explicit scope-bound approvals, ordered transitions, context hash checks, pinned skill eligibility, validated handoffs, bounded adapter attempts, and a tool gateway with capability checks and dry-run suppression. Read the [capability matrix](runtime/README.md#capability-matrix) before relying on a control.
+It includes atomic workflow/checkpoint/audit persistence, explicit scope-bound approvals, ordered transitions, context hash checks, pinned skill eligibility, validated handoffs, bounded adapter attempts, and a tool gateway with capability checks and dry-run suppression. Read the [capability matrix](kit/runtime/README.md#capability-matrix) before relying on a control.
 
 ```text
 Developer Prompt / Work Document

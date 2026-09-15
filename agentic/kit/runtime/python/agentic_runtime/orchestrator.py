@@ -65,7 +65,7 @@ class Orchestrator:
         if not project.strip() or not title.strip():
             raise ValueError('Project and title are required')
         route = workflow_route(work_type, planning, self.policy['require_uat_approval'])
-        root = Path(repo or self.kit_dir.parent).resolve()
+        root = Path(repo or self.kit_dir.parent.parent).resolve()
         if not root.is_dir():
             raise ValueError('Project root must exist')
         ts = now()

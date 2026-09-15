@@ -14,8 +14,9 @@ from agentic_runtime.store import RuntimeStore
 from agentic_runtime.tools import NATIVE_TOOL_CAPABILITY, build_default_tools
 
 KIT = HERE.parents[2]
-DB = KIT / 'data/runtime/state/agentic.db'
-ACTIVE_TASK_POINTER = KIT / 'data/runtime/state/active-task.json'
+AGENTIC = KIT.parent
+DB = AGENTIC / 'data/runtime/state/agentic.db'
+ACTIVE_TASK_POINTER = AGENTIC / 'data/runtime/state/active-task.json'
 
 
 def _write_active_task(db, run_id, task_id):
@@ -37,7 +38,7 @@ def main(argv=None):
     start.add_argument('--project', required=True)
     start.add_argument('--type', choices=sorted(WORK_TYPES), required=True)
     start.add_argument('--title', required=True)
-    start.add_argument('--repo', type=Path, default=KIT.parent)
+    start.add_argument('--repo', type=Path, default=AGENTIC.parent)
     start.add_argument('--planning', choices=sorted(PLANNING), default='NO_REPLAN')
     start.add_argument('--dry-run', action='store_true')
     for name in ('show', 'eligible', 'cancel'):
