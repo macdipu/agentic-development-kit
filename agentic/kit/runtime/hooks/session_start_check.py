@@ -20,8 +20,9 @@ import sys
 from pathlib import Path
 
 KIT = Path(__file__).resolve().parents[2]
-ACTIVE_TASK_POINTER = KIT / 'data/runtime/state/active-task.json'
-DEFAULT_DB = KIT / 'data/runtime/state/agentic.db'
+REPO_ROOT = Path(__file__).resolve().parents[3]
+ACTIVE_TASK_POINTER = REPO_ROOT / 'data/runtime/state/active-task.json'
+DEFAULT_DB = REPO_ROOT / 'data/runtime/state/agentic.db'
 UNFINISHED_STATUSES = {'RUNNING', 'BLOCKED'}
 
 
