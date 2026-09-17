@@ -17,3 +17,10 @@ another run. Unknown or damaged state requires explicit recovery.
 
 Record execution timing through the harness. Before compaction, checkpoint
 active work and update affected task/context documents with remaining work.
+
+Read `.agent/HANDOFF.md` and the latest `.agent/sessions/*.md` entry before
+starting work (or run `agentic_runtime.cli pickup`) -- cross-agent-platform
+handoff notes any agent, on any platform, can read after `git pull`. When
+finishing a work session, run `agentic_runtime.cli close-session --agent
+<claude|codex> --summary "..."` (automatic via the `Stop` hook where supported)
+so the next agent, on this platform or another, can continue from git alone.

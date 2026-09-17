@@ -3,7 +3,6 @@ import json
 import os
 from pathlib import Path
 import shutil
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -53,36 +52,34 @@ def probe_hooks(kit):
         copy = root / 'agentic/kit'
         for name in ('runtime', 'config', 'skills'):
             shutil.copytree(kit / name, copy / name, ignore=shutil.ignore_patterns('__pycache__'))
-        db = root / 'agentic/data/runtime/state/agentic.db'
-        store = RuntimeStore(str(db))
-        try:
-            orch = Orchestrator(store, copy)
-            run = orch.start('doctor-fixture', 'discovery', 'Check hook enforcement', repo=root)
-            task, _ = orch.start_task(run.run_id, 'prompt-intake-adapter')
-            marker = db.parent / 'active-task.json'
-            activate(marker, db, run.run_id, task['id'])
-            env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
-            def hook(name, payload=None):
-                result = subprocess.run([sys.executable, str(copy / 'runtime/hooks' / name)],
-                                        input=json.dumps(payload or {}), capture_output=True, text=True,
-                                        cwd=root, env=env, timeout=15)
-                if result.returncode:
-                    raise ValueError(result.stderr)
-                return json.loads(result.stdout)
-            denied = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'source.py')}})
-            if denied['hookSpecificOutput']['permissionDecision'] != 'deny':
-                raise ValueError('Hook permitted an unauthorized source write')
-            allowed = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'agentic/data/artifacts/result.md')}})
-            if allowed['hookSpecificOutput']['permissionDecision'] != 'allow':
-                raise ValueError('Hook denied a permitted document write')
-            session = hook('session_start_check.py')
-            if run.run_id not in session['hookSpecificOutput']['additionalContext']:
-                raise ValueError('Session hook did not identify the active run')
-            hook('precompact_checkpoint.py')
-            if not store.conn.execute("SELECT 1 FROM audit_events WHERE event='precompact_checkpoint'").fetchone():
-                raise ValueError('Compaction hook did not persist its checkpoint')
-        finally:
-            store.conn.close()
+        runs_dir = root / 'agentic/data/runtime/state/runs'
+        store = RuntimeStore(str(runs_dir))
+        orch = Orchestrator(store, copy)
+        run = orch.start('doctor-fixture', 'discovery', 'Check hook enforcement', repo=root)
+        task, _ = orch.start_task(run.run_id, 'prompt-intake-adapter')
+        marker = runs_dir.parent / 'active-task.json'
+        activate(marker, runs_dir, run.run_id, task['id'])
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
+        def hook(name, payload=None):
+            result = subprocess.run([sys.executable, str(copy / 'runtime/hooks' / name)],
+                                    input=json.dumps(payload or {}), capture_output=True, text=True,
+                                    cwd=root, env=env, timeout=15)
+            if result.returncode:
+                raise ValueError(result.stderr)
+            return json.loads(result.stdout)
+        denied = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'source.py')}})
+        if denied['hookSpecificOutput']['permissionDecision'] != 'deny':
+            raise ValueError('Hook permitted an unauthorized source write')
+        allowed = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'agentic/data/artifacts/result.md')}})
+        if allowed['hookSpecificOutput']['permissionDecision'] != 'allow':
+            raise ValueError('Hook denied a permitted document write')
+        session = hook('session_start_check.py')
+        if run.run_id not in session['hookSpecificOutput']['additionalContext']:
+            raise ValueError('Session hook did not identify the active run')
+        hook('precompact_checkpoint.py')
+        audit_events = json.loads((runs_dir / f'{run.run_id}.json').read_text()).get('audit_events', [])
+        if not any(e['event'] == 'precompact_checkpoint' for e in audit_events):
+            raise ValueError('Compaction hook did not persist its checkpoint')
 
 
 def diagnose(root):
@@ -104,7 +101,7 @@ def diagnose(root):
     except (OSError, ValueError) as exc:
         return {'ok': False, 'checks': [{'check': 'installation record', 'ok': False, 'reason': str(exc)}]}
     mode, agent = installation.get('mode'), installation.get('agent')
-    check('mode', lambda: require(mode in {'instruction-only', 'local-harness'} and agent in {'cli', 'claude'}, 'Unknown mode or agent'))
+    check('mode', lambda: require(mode in {'instruction-only', 'local-harness'} and agent in {'cli', 'claude', 'codex'}, 'Unknown mode or agent'))
     for name in ('README.md', 'SKILL-CATALOG.md', 'ADOPTION.md'):
         check(name, lambda name=name: require((root / 'agentic' / name).is_file(), 'Missing packaged document'))
     check('instructions', lambda: require('<!-- agentic-kit:start -->' in (root / 'AGENTS.md').read_text(), 'Managed instructions missing'))
@@ -112,21 +109,21 @@ def diagnose(root):
         from .orchestrator import Orchestrator
         from .store import RuntimeStore
         with tempfile.TemporaryDirectory(prefix='agentic-storage-probe-') as temporary:
-            store = RuntimeStore(str(Path(temporary) / 'probe.db'))
-            try:
-                Orchestrator(store, kit)
-                with store.transaction():
-                    store.audit('doctor', 'PROBE', {}, 'fixture')
-                require(bool(store.conn.execute('SELECT 1 FROM audit_events').fetchone()), 'Storage commit failed')
-            finally:
-                store.conn.close()
+            store = RuntimeStore(str(Path(temporary) / 'runs'))
+            Orchestrator(store, kit)
+            with store.transaction():
+                store.audit('doctor', 'PROBE', {}, 'fixture')
+            require(any(store.store_dir.glob('*.json')), 'Storage commit failed')
     check('configuration and storage execution', config)
     if mode == 'local-harness':
-        db = root / 'agentic/data/runtime/state/agentic.db'
+        runs_dir = root / 'agentic/data/runtime/state/runs'
         def database():
-            require(db.is_file(), 'Runtime DB not initialized')
-            with sqlite3.connect(db.as_uri() + '?mode=ro', uri=True) as conn:
-                require(conn.execute('PRAGMA quick_check').fetchone()[0] == 'ok', 'Database integrity check failed')
+            require(runs_dir.is_dir(), 'Runtime store not initialized')
+            for path in runs_dir.glob('*.json'):
+                try:
+                    json.loads(path.read_text())
+                except (OSError, ValueError) as exc:
+                    raise ValueError(f'Corrupt run file {path.name}: {exc}')
         check('installed database', database)
         check('isolated hook execution', lambda: probe_hooks(kit))
         if agent == 'claude':
@@ -141,15 +138,15 @@ def diagnose(root):
             warnings.append('Hook probes run isolated code; verify invocation in one real Claude session')
         else:
             warnings.append('CLI mode requires task-start/call-tool/task-finish; native agent tools are not intercepted')
-        marker = db.parent / 'active-task.json'
+        marker = runs_dir.parent / 'active-task.json'
         if marker.exists():
             def active_state():
                 pointer = json.loads(marker.read_text())
-                pointer_db = Path(pointer['db']).resolve()
-                with sqlite3.connect(pointer_db.as_uri() + '?mode=ro', uri=True) as conn:
-                    row = conn.execute('SELECT metadata_json FROM workflow_runs WHERE run_id=?', (pointer['run_id'],)).fetchone()
-                    active = json.loads(row[0]).get('active_task') if row else None
-                    require(active and active['id'] == pointer['task_id'], 'Marker and database task disagree; recover explicitly')
+                pointer_dir = Path(pointer['store_dir']).resolve()
+                run_file = pointer_dir / f"{pointer['run_id']}.json"
+                data = json.loads(run_file.read_text()) if run_file.is_file() else None
+                active = (data or {}).get('run', {}).get('metadata', {}).get('active_task') if data else None
+                require(active and active['id'] == pointer['task_id'], 'Marker and database task disagree; recover explicitly')
             check('active task consistency', active_state)
     try:
         rules = json.loads((kit / 'config/allowed-commands.json').read_text())['commands']

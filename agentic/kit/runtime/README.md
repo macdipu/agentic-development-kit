@@ -9,7 +9,7 @@ See the [production readiness checklist](production-readiness.md) for what organ
 | Capability | Implemented local behavior | Boundary |
 |---|---|---|
 | Workflow | Work-type routes, ordered transitions, terminal states, ready stage results | Coarse stages; no automatic business or sprint classification |
-| Persistence | SQLite transactions commit run, checkpoint, audit together | Local database; writable by the operator, not immutable audit storage |
+| Persistence | One JSON file per run (`runs/<run_id>.json`); a `transaction()` context commits run, checkpoint, audit together via write-temp+atomic-replace, guarded by a per-run lock file | Local store; writable by the operator, not immutable audit storage; the lock guards one machine, not cross-machine access |
 | Approvals | Explicit decisions bound to scope revision, evidence prerequisites, rejection/revocation | `--by` is an operator assertion, not authenticated identity or RBAC |
 | Context | Explicit scoped file hashes detect dirty changes and deletions | Caller selects sufficient files; no automatic dependency discovery or semantic freshness |
 | Skills | Stage eligibility and SHA-256 pins for instructions, references, shared contract | Trusted local files and adapters; no automatic model execution |
@@ -63,7 +63,7 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py impact auth billing --
 
 `edges.json` maps a module name to the list of modules that depend on it (e.g. `{"auth": ["billing"], "billing": ["invoicing"]}`); `impact` walks that graph from the given modules and returns the full affected set. The runtime does not discover these edges itself — supply them from `module-context.yaml`'s `dependencies` field or another source of truth.
 
-Default state lives under `agentic/data/runtime/state/`. Put `--db /path/to/state.sqlite3` before the subcommand to select another database. Invalid input and denied transitions return a nonzero exit code and leave the previous stage intact. `BLOCKED` results can be retried within budget; unknown stage strings are rejected.
+Default state lives under `agentic/data/runtime/state/runs/`. Put `--store-dir /path/to/runs` before the subcommand to select another store directory. Invalid input and denied transitions return a nonzero exit code and leave the previous stage intact. `BLOCKED` results can be retried within budget; unknown stage strings are rejected.
 
 ## Routes and gates
 
@@ -194,16 +194,16 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py cancel RUN_ID
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py recover RUN_ID --reason "Worker stopped; effects reconciled"
 ```
 
-If a marker is damaged, first stop its worker and reconcile the database from a
+If a marker is damaged, first stop its worker and reconcile the store from a
 supervising terminal. After recovering active tasks, use
 `python3 agentic/kit/runtime/python/agentic_runtime/cli.py repair-marker --workers-stopped --reason "Recovery evidence"`.
-Use `--db` before the subcommand for a custom database. The command refuses to clear
-a marker while that database has active tasks and retains the old marker as a
+Use `--store-dir` before the subcommand for a custom store. The command refuses to clear
+a marker while that store has active tasks and retains the old marker as a
 recovery artifact. It is an operator acknowledgment, not automatic worker termination.
 
 A cancelled run is terminal. Recovery applies to an active marker left by an interrupted worker; stop that worker first. Recovery clears the marker and records interruption, without replaying a call or resetting attempt counts. Callbacks already running may finish externally even after cancellation; late results are not accepted.
 
-Read the [upgrade notes](../../ADOPTION.md#upgrade-an-existing-installation) before opening old state. The local schema update preserves legacy records but does not turn old approvals into current authorization.
+Read the [upgrade notes](../../ADOPTION.md#upgrade-an-existing-installation) before opening old state. The per-run JSON files carry no schema version; a mismatched shape simply won't match the current WorkflowRun fields, and does not turn old approvals into current authorization.
 
 ## Verification
 

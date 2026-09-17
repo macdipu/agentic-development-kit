@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
-import sqlite3
 from unittest.mock import patch
 
 from support import HarnessCase, ready
@@ -140,12 +139,12 @@ class RuntimeTests(HarnessCase):
     def test_checkpoint_failure_rolls_back_run_audit_and_timing(self):
         self.start()
         before = self.store.get_run(self.run_id).to_dict()
-        count = self.store.conn.execute('SELECT count(*) FROM audit_events').fetchone()[0]
-        with patch.object(self.store, 'checkpoint', side_effect=sqlite3.OperationalError('fixture disk failure')):
-            with self.assertRaises(sqlite3.OperationalError):
+        count = len(self.store._view(self.run_id).get('audit_events', []))
+        with patch.object(self.store, 'checkpoint', side_effect=OSError('fixture disk failure')):
+            with self.assertRaises(OSError):
                 self.orch.start_task(self.run_id, 'prompt-intake-adapter')
         self.assertEqual(self.store.get_run(self.run_id).to_dict(), before)
-        self.assertEqual(self.store.conn.execute('SELECT count(*) FROM audit_events').fetchone()[0], count)
+        self.assertEqual(len(self.store._view(self.run_id).get('audit_events', [])), count)
         self.assertEqual(self.store.query_timing(self.run_id), [])
 
     def test_config_and_skill_pins_reject_changes(self):

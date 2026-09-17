@@ -485,4 +485,4 @@ Skill + Approved Tools + Model Adapter
 Checkpoint + Timing + Audit + Artifacts
 ```
 
-The supplied runtime is a local reference implementation for trusted adapters. Replacing SQLite alone does not create production isolation, authenticated approvals, or hard cancellation. Those boundaries need organization-specific infrastructure; production actions are unsupported by this runtime.
+The supplied runtime is a local reference implementation for trusted adapters. Replacing the local JSON-file store alone does not create production isolation, authenticated approvals, or hard cancellation. Those boundaries need organization-specific infrastructure; production actions are unsupported by this runtime.

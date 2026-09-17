@@ -115,14 +115,11 @@ class AdoptionTests(unittest.TestCase):
         self.install(mode='local-harness')
         path = self.host / 'agentic/kit/config/platform.json'
         original = path.read_bytes()
-        store = RuntimeStore(str(self.host / 'agentic/data/runtime/state/agentic.db'))
-        try:
-            Orchestrator(store, self.host / 'agentic/kit').start('fixture', 'discovery', 'Unfinished work', repo=self.host)
-            with self.assertRaisesRegex(ValueError, 'Finish or cancel'):
-                self.install(upgrade=True)
-            self.assertEqual(path.read_bytes(), original)
-        finally:
-            store.conn.close()
+        store = RuntimeStore(str(self.host / 'agentic/data/runtime/state/runs'))
+        Orchestrator(store, self.host / 'agentic/kit').start('fixture', 'discovery', 'Unfinished work', repo=self.host)
+        with self.assertRaisesRegex(ValueError, 'Finish or cancel'):
+            self.install(upgrade=True)
+        self.assertEqual(path.read_bytes(), original)
 
     def test_literal_source_path_is_validated_before_install_commit(self):
         self.install()

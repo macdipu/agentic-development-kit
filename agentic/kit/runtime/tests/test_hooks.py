@@ -29,22 +29,22 @@ class HookTests(HarnessCase):
 
     def test_marker_cannot_be_overwritten_or_cleared_by_another_run(self):
         marker = self.root / 'agentic/data/runtime/state/active-task.json'
-        markers.reserve(marker, self.store.db_path, 'first')
+        markers.reserve(marker, self.store.store_dir, 'first')
         with self.assertRaises(FileExistsError):
-            markers.reserve(marker, self.store.db_path, 'second')
-        markers.activate(marker, self.store.db_path, 'first', 'task')
-        markers.clear(marker, self.store.db_path, 'second')
-        markers.clear(marker, self.store.db_path, 'first', 'other-task')
+            markers.reserve(marker, self.store.store_dir, 'second')
+        markers.activate(marker, self.store.store_dir, 'first', 'task')
+        markers.clear(marker, self.store.store_dir, 'second')
+        markers.clear(marker, self.store.store_dir, 'first', 'other-task')
         self.assertTrue(marker.exists())
-        markers.clear(marker, self.store.db_path, 'first', 'task')
+        markers.clear(marker, self.store.store_dir, 'first', 'task')
         self.assertFalse(marker.exists())
 
     def test_hook_internal_error_denies_instead_of_allowing(self):
         marker = self.root / 'agentic/data/runtime/state/active-task.json'
-        marker.write_text(json.dumps({'db': str(self.root / 'missing.db'), 'run_id': 'none', 'task_id': 'none'}))
+        marker.write_text(json.dumps({'store_dir': str(self.root / 'missing-store'), 'run_id': 'none', 'task_id': 'none'}))
         verdict = self.hook('pretooluse_gate.py', {'tool_name': 'Bash', 'tool_input': {'command': 'git diff'}})
         self.assertEqual(verdict['hookSpecificOutput']['permissionDecision'], 'deny')
-        self.assertFalse((self.root / 'missing.db').exists())
+        self.assertFalse((self.root / 'missing-store').exists())
 
     def test_cli_task_lifecycle_uses_shared_marker_and_records_timing(self):
         def cli(*args):

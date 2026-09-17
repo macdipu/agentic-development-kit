@@ -3,7 +3,7 @@
 ## Choose an operating mode
 
 - **instruction-only:** installs workflow instructions, skills, templates, and
-  configuration. No automatic tool interception or initialized workflow database.
+  configuration. No automatic tool interception or initialized workflow state.
 - **local-harness:** also initializes workflow state. Use the CLI task protocol,
   or select Claude integration to install native tool hooks.
 
@@ -12,13 +12,24 @@ From a reviewed kit checkout:
 ```sh
 python3 agentic/kit/scripts/init_project.py --target /path/to/project --project my-project --type brownfield --mode instruction-only --agent cli
 python3 agentic/kit/scripts/init_project.py --target /path/to/project --project my-project --type brownfield --mode local-harness --agent claude
+python3 agentic/kit/scripts/init_project.py --target /path/to/project --project my-project --type brownfield --mode local-harness --agent codex
 ```
 
 Use `--type greenfield` for a new application. An omitted mode defaults to
 instruction-only on first install; subsequent runs retain the previous selection.
-Agent selection detects an existing Claude directory, otherwise it uses CLI mode.
-Other agent platforms can use the CLI adapter, but native interception requires
-their own integration. The installer reports this boundary.
+Agent selection detects an existing `.claude/` or `.codex/` directory, otherwise
+it uses CLI mode. `claude` gets native Claude Code hooks (`PreToolUse`,
+`SessionStart`, `PreCompact`, `Stop`); `codex` and other agent platforms use the
+CLI adapter (`task-start`/`call-tool`/`task-finish`, `pickup`/`close-session`),
+but native interception requires their own integration. The installer reports
+this boundary.
+
+Every install also scaffolds `.agent/HANDOFF.md`, `.agent/sessions/`, and
+`.claude/skills/agent-handoff/` + `.codex/skills/agent-handoff/` (compatible
+with [ishipu/agent-handoff](https://github.com/ishipu/agent-handoff)) regardless
+of the chosen agent, so any platform can pick up or hand off a session from
+what's committed to git — unlike `agentic/data/runtime/state/`, which is
+per-clone and gitignored.
 
 ## What installation does
 

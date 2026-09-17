@@ -14,10 +14,39 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'agentic/kit/runtime/python'))
 from agentic_runtime.doctor import detect_project, diagnose
 from agentic_runtime.installation import managed_text, merge_hooks, unfinished_runs
+from agentic_runtime import handoff
 
 DOCS = ['README.md', 'ADOPTION.md', 'SKILL-CATALOG.md']
 IGNORE = ['/agentic/data/runtime/state/', '/agentic/data/runtime/logs/',
           '/agentic/data/artifacts/', '/agentic-backups/', '__pycache__/', '*.py[cod]']
+
+HANDOFF_SKILL = """---
+name: agent-handoff
+description: Read and write this project's cross-agent-platform handoff notes ({invoke})
+---
+
+Before starting work, read `.agent/HANDOFF.md` and the most recent file under
+`.agent/sessions/` (or run `python3 agentic/kit/runtime/python/agentic_runtime/cli.py pickup`)
+to pick up where the last agent -- on this platform or another -- left off.
+
+When you finish a work session, record it so a different agent/platform can
+continue from git alone:
+
+```
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \\
+  --agent {agent} --summary "what you did" --goal "what this run is for" \\
+  --next-step "what to do next"
+```
+
+This writes `.agent/HANDOFF.md` and a new `.agent/sessions/<timestamp>-{agent}.md`
+record, both git-tracked (unlike this kit's own local run store under
+`agentic/data/runtime/state/`, which stays out of git). Never overwrite another
+agent's uncommitted changes without explicit user approval.
+"""
+
+
+def _handoff_skill(agent, invoke):
+    return HANDOFF_SKILL.format(agent=agent, invoke=invoke)
 
 
 def install(target, project, project_type, mode, agent, upgrade=False):
@@ -35,7 +64,8 @@ def install(target, project, project_type, mode, agent, upgrade=False):
     previous = json.loads(existing_install.read_text()) if existing_install.exists() else {}
     # Default reruns retain an explicitly chosen mode and platform.
     mode = mode or previous.get('mode', 'instruction-only')
-    agent = agent or previous.get('agent', 'claude' if (target / '.claude').is_dir() else 'cli')
+    agent = agent or previous.get('agent', 'claude' if (target / '.claude').is_dir()
+                                   else 'codex' if (target / '.codex').is_dir() else 'cli')
     if previous.get('mode') == 'local-harness' and mode != previous['mode']:
         raise ValueError('Mode downgrade requires removing hooks and reconciling runs manually')
     with tempfile.TemporaryDirectory(prefix='agentic-stage-', dir=target.parent) as temporary:
@@ -83,6 +113,20 @@ def install(target, project, project_type, mode, agent, upgrade=False):
         index = 'agentic/data/project-context/context-index.yaml'
         if not (target / index).exists():
             put(index, 'system:\n  status: MISSING\nmodules: {}\nfeatures: {}\n')
+
+        # Cross-agent-platform handoff notes (agent-handoff compatible, git-tracked
+        # unlike agentic/data/runtime/state/): scaffold once, never clobber live notes.
+        if not (target / '.agent').exists():
+            put('.agent/sessions/.gitkeep', '')
+            put('.agent/HANDOFF.md', handoff.render_handoff(
+                last_agent='claude', status='NOT_STARTED', goal='(not started)',
+                summary='Project scaffolded; no session has run yet.',
+                next_step='Start the first governed run or work item.',
+                git_snapshot_text=handoff.git_snapshot(target), notes=''))
+        if not (target / '.claude/skills/agent-handoff/SKILL.md').exists():
+            put('.claude/skills/agent-handoff/SKILL.md', _handoff_skill('claude', '/agent-handoff'))
+        if not (target / '.codex/skills/agent-handoff/SKILL.md').exists():
+            put('.codex/skills/agent-handoff/SKILL.md', _handoff_skill('codex', '$agent-handoff'))
 
         detected = detect_project(target)
         command_path = stage / 'agentic/kit/config/allowed-commands.json'
@@ -169,7 +213,7 @@ def main(argv=None):
     parser.add_argument('--project', required=True)
     parser.add_argument('--type', choices=['greenfield', 'brownfield'], required=True)
     parser.add_argument('--mode', choices=['instruction-only', 'local-harness'])
-    parser.add_argument('--agent', choices=['cli', 'claude'])
+    parser.add_argument('--agent', choices=['cli', 'claude', 'codex'])
     parser.add_argument('--upgrade', '--force', action='store_true', dest='upgrade',
                         help='Install new kit code with backups, preserving project configuration')
     args = parser.parse_args(argv)

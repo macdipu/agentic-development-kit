@@ -2,6 +2,7 @@
   "hooks": {
     "PreToolUse": [{"matcher": "Bash|Write|Edit|NotebookEdit", "hooks": [{"type": "command", "command": "python3 agentic/kit/runtime/hooks/pretooluse_gate.py"}]}],
     "SessionStart": [{"matcher": "*", "hooks": [{"type": "command", "command": "python3 agentic/kit/runtime/hooks/session_start_check.py"}]}],
-    "PreCompact": [{"matcher": "*", "hooks": [{"type": "command", "command": "python3 agentic/kit/runtime/hooks/precompact_checkpoint.py"}]}]
+    "PreCompact": [{"matcher": "*", "hooks": [{"type": "command", "command": "python3 agentic/kit/runtime/hooks/precompact_checkpoint.py"}]}],
+    "Stop": [{"matcher": "*", "hooks": [{"type": "command", "command": "python3 agentic/kit/runtime/hooks/session_stop_handoff.py"}]}]
   }
 }

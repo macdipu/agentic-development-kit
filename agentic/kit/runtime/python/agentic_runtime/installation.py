@@ -2,7 +2,6 @@
 import copy
 import json
 from pathlib import Path
-import sqlite3
 
 BEGIN = '<!-- agentic-kit:start -->'
 END = '<!-- agentic-kit:end -->'
@@ -35,8 +34,15 @@ def merge_hooks(existing, template):
 
 
 def unfinished_runs(root):
-    db = Path(root) / 'agentic/data/runtime/state/agentic.db'
-    if not db.exists():
+    runs_dir = Path(root) / 'agentic/data/runtime/state/runs'
+    if not runs_dir.is_dir():
         return []
-    with sqlite3.connect(db.as_uri() + '?mode=ro', uri=True) as conn:
-        return conn.execute("SELECT run_id FROM workflow_runs WHERE status IN ('RUNNING','BLOCKED')").fetchall()
+    unfinished = []
+    for path in runs_dir.glob('*.json'):
+        try:
+            run = json.loads(path.read_text()).get('run')
+        except (OSError, ValueError):
+            continue
+        if run and run.get('status') in ('RUNNING', 'BLOCKED'):
+            unfinished.append(run['run_id'])
+    return unfinished

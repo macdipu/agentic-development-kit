@@ -41,13 +41,10 @@ def main():
         from agentic_runtime.store import RuntimeStore
         tool_input = payload.get('tool_input') or {}
         command = tool_input.get('command') if tool_name == 'Bash' else None
-        if not Path(pointer['db']).is_file():
-            raise ValueError('Active task database is missing; restore it before recovery')
-        store = RuntimeStore(pointer['db'])
-        try:
-            Orchestrator(store, KIT).guard(pointer['run_id'], pointer['task_id'], tool_name, command, tool_input)
-        finally:
-            store.conn.close()
+        if not Path(pointer['store_dir']).is_dir():
+            raise ValueError('Active task store is missing; restore it before recovery')
+        store = RuntimeStore(pointer['store_dir'])
+        Orchestrator(store, KIT).guard(pointer['run_id'], pointer['task_id'], tool_name, command, tool_input)
     except (PermissionError, ValueError, TimeoutError) as exc:
         return _emit('deny', str(exc))
     except Exception as exc:

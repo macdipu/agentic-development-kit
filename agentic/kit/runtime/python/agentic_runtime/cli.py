@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import sqlite3
 import sys
 import uuid
 from pathlib import Path
@@ -13,13 +12,13 @@ from agentic_runtime.orchestrator import Orchestrator
 from agentic_runtime.policy import PLANNING, STAGES, WORK_TYPES
 from agentic_runtime.store import RuntimeStore
 from agentic_runtime.tools import NATIVE_TOOL_CAPABILITY, build_default_tools
-from agentic_runtime.paths import KIT, AGENTIC, DB, ACTIVE_TASK_POINTER
-from agentic_runtime import markers
+from agentic_runtime.paths import KIT, AGENTIC, REPO_ROOT, RUNS_DIR, ACTIVE_TASK_POINTER
+from agentic_runtime import markers, handoff
 from agentic_runtime.timing import now
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Local governed workflow runtime (trusted operator)')
-    parser.add_argument('--db', type=Path, default=DB)
+    parser.add_argument('--store-dir', type=Path, default=RUNS_DIR, dest='store_dir')
     sub = parser.add_subparsers(dest='cmd', required=True)
     sub.add_parser('init')
     sub.add_parser('list')
@@ -88,8 +87,17 @@ def main(argv=None):
     guard.add_argument('--tool', required=True, choices=sorted(NATIVE_TOOL_CAPABILITY))
     guard.add_argument('--command', help='The Bash command text, required when --tool Bash')
     guard.add_argument('--input', default='{}', help='JSON native tool input including write paths')
+    pickup = sub.add_parser('pickup', help='Print .agent/HANDOFF.md + the latest session record for a hookless CLI/platform')
+    pickup.add_argument('--repo', type=Path, default=REPO_ROOT)
+    close_session = sub.add_parser('close-session', help='Write .agent/HANDOFF.md + a session record for cross-agent-platform handoff (agent-handoff compatible)')
+    close_session.add_argument('--agent', required=True, choices=sorted(handoff.VALID_AGENTS))
+    close_session.add_argument('--summary', required=True)
+    close_session.add_argument('--status', default='COMPLETED')
+    close_session.add_argument('--goal', default='')
+    close_session.add_argument('--next-step', default='', dest='next_step')
+    close_session.add_argument('--notes', default='')
+    close_session.add_argument('--repo', type=Path, default=REPO_ROOT)
     args = parser.parse_args(argv)
-    store = None
     try:
         if args.cmd == 'production-check':
             from agentic_runtime.production import check_readiness
@@ -101,10 +109,17 @@ def main(argv=None):
             report = diagnose(args.repo)
             print(json.dumps(report, indent=2))
             return 0 if report['ok'] else 1
-        store = RuntimeStore(str(args.db))
+        if args.cmd == 'pickup':
+            note = handoff.read_handoff(args.repo)
+            session = handoff.read_latest_session(args.repo)
+            print(note or 'No .agent/HANDOFF.md yet.')
+            if session:
+                print('\n' + session)
+            return 0
+        store = RuntimeStore(str(args.store_dir))
         orch = Orchestrator(store, KIT)
         if args.cmd == 'init':
-            output = {'db': str(args.db.resolve())}
+            output = {'store_dir': str(args.store_dir.resolve())}
         elif args.cmd == 'list':
             output = store.list_runs()
         elif args.cmd == 'start':
@@ -129,9 +144,9 @@ def main(argv=None):
         elif args.cmd in {'reopen', 'recover'}:
             output = getattr(orch, args.cmd)(args.run_id, args.reason)
             if args.cmd == 'recover':
-                markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id)
+                markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
         elif args.cmd == 'repair-marker':
-            if not args.reason.strip() or any(json.loads(r['metadata_json']).get('active_task') for r in store.list_runs()):
+            if not args.reason.strip() or any(r['metadata'].get('active_task') for r in store.list_runs()):
                 raise ValueError('Recover active database tasks before repairing their marker')
             # Explicit operator recovery; retain damaged contents for diagnosis.
             if ACTIVE_TASK_POINTER.exists():
@@ -139,22 +154,22 @@ def main(argv=None):
                     pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
                 except ValueError:
                     pointer = {}
-                if isinstance(pointer, dict) and pointer.get('db') and Path(pointer['db']).resolve() != args.db.resolve():
-                    raise ValueError('Marker belongs to a different database; select it explicitly with --db')
+                if isinstance(pointer, dict) and pointer.get('store_dir') and Path(pointer['store_dir']).resolve() != args.store_dir.resolve():
+                    raise ValueError('Marker belongs to a different store; select it explicitly with --store-dir')
                 backup = ACTIVE_TASK_POINTER.with_name('active-task.recovered-' + uuid.uuid4().hex + '.json')
                 ACTIVE_TASK_POINTER.rename(backup)
                 store.audit('marker-recovery', 'MARKER_RECOVERED', {'reason': args.reason, 'backup': str(backup)}, now())
             output = {'repaired': True}
         elif args.cmd == 'task-start':
-            markers.reserve(ACTIVE_TASK_POINTER, args.db, args.run_id)
+            markers.reserve(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
             task = None
             try:
                 task, context = orch.start_task(args.run_id, args.skill)
-                markers.activate(ACTIVE_TASK_POINTER, args.db, args.run_id, task['id'])
+                markers.activate(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, task['id'])
             except BaseException as exc:
                 if task:
                     orch.fail_task(args.run_id, task['id'], exc)
-                markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id)
+                markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
                 raise
             output = {'task_id': task['id'], 'context': context}
         elif args.cmd == 'call-tool':
@@ -166,13 +181,17 @@ def main(argv=None):
         elif args.cmd == 'task-finish':
             submitted = json.loads(args.file.read_text())
             output = orch.finish_task(args.run_id, args.task_id, submitted)
-            markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id, args.task_id)
+            markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, args.task_id)
         elif args.cmd == 'task-fail':
             orch.fail_task(args.run_id, args.task_id, args.error)
-            markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id, args.task_id)
+            markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, args.task_id)
             output = {'task_id': args.task_id, 'failed': True}
         elif args.cmd == 'guard':
             output = orch.guard(args.run_id, args.task_id, args.tool, args.command, json.loads(args.input))
+        elif args.cmd == 'close-session':
+            output = handoff.close_session(args.repo, agent=args.agent, summary=args.summary,
+                                            status=args.status, goal=args.goal,
+                                            next_step=args.next_step, notes=args.notes)
         elif args.cmd == 'impact':
             edges = json.loads(args.edges.read_text())
             if not isinstance(edges, dict) or not all(isinstance(v, list) for v in edges.values()):
@@ -184,15 +203,12 @@ def main(argv=None):
             output = {'modules': graph.closure(args.modules)}
         else:
             output = orch.cancel(args.run_id)
-            markers.clear(ACTIVE_TASK_POINTER, args.db, args.run_id)
+            markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
         print(json.dumps(output.to_dict() if hasattr(output, 'to_dict') else output, indent=2))
         return 0
-    except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
+    except (ValueError, OSError, RuntimeError, TimeoutError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    finally:
-        if store:
-            store.conn.close()
 
 
 if __name__ == '__main__':

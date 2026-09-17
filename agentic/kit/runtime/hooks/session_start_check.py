@@ -6,20 +6,24 @@ startup/resume/clear alike). Order of checks:
 
 1. agentic/data/runtime/state/active-task.json present -> a task-start was never
    closed by task-finish/task-fail/cancel/recover. Report it as midflight.
-2. No active-task pointer, but the default run DB
-   (agentic/data/runtime/state/agentic.db) has a run whose status is RUNNING or
+2. No active-task pointer, but the default run store
+   (agentic/data/runtime/state/runs/) has a run whose status is RUNNING or
    BLOCKED -> report the most recently updated one as midflight.
 3. Otherwise -> nothing in flight, clear to start the next work item.
 
 Unreadable state is reported as UNKNOWN with explicit recovery instructions.
 The session remains available for diagnosis, but must not assume there is no work.
+
+Also surfaces `.agent/HANDOFF.md` + the latest `.agent/sessions/*.md` entry, if
+present, as pickup context -- the same information upstream agent-handoff's own
+`pickup` command prints, folded into this hook instead of a separate CLI step.
 """
 import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'runtime/python'))
-from agentic_runtime.paths import KIT, ACTIVE_TASK_POINTER, DB as DEFAULT_DB
+from agentic_runtime.paths import KIT, REPO_ROOT, ACTIVE_TASK_POINTER, RUNS_DIR as DEFAULT_RUNS_DIR
 UNFINISHED_STATUSES = {'RUNNING', 'BLOCKED'}
 
 
@@ -35,15 +39,12 @@ def _check_active_task():
     if not ACTIVE_TASK_POINTER.exists():
         return None
     pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
-    if not Path(pointer['db']).is_file():
-        raise ValueError('Active-task database is missing')
+    if not Path(pointer['store_dir']).is_dir():
+        raise ValueError('Active-task store is missing')
     sys.path.insert(0, str(KIT / 'runtime/python'))
     from agentic_runtime.store import RuntimeStore
-    store = RuntimeStore(pointer['db'])
-    try:
-        run = store.get_run(pointer['run_id'])
-    finally:
-        store.conn.close()
+    store = RuntimeStore(pointer['store_dir'])
+    run = store.get_run(pointer['run_id'])
     detail = f"run_id={pointer['run_id']} task_id={pointer['task_id']}"
     if run:
         detail += f" stage={run.stage} status={run.status} title={run.title!r}"
@@ -56,15 +57,12 @@ def _check_active_task():
 
 
 def _check_unfinished_run():
-    if not DEFAULT_DB.exists():
+    if not DEFAULT_RUNS_DIR.is_dir():
         return None
     sys.path.insert(0, str(KIT / 'runtime/python'))
     from agentic_runtime.store import RuntimeStore
-    store = RuntimeStore(str(DEFAULT_DB))
-    try:
-        runs = store.list_runs()
-    finally:
-        store.conn.close()
+    store = RuntimeStore(str(DEFAULT_RUNS_DIR))
+    runs = store.list_runs()
     unfinished = [r for r in runs if r['status'] in UNFINISHED_STATUSES]
     if not unfinished:
         return None
@@ -77,6 +75,19 @@ def _check_unfinished_run():
         '(`agentic_runtime.cli show <run_id>`, then continue or `recover`) '
         'before starting the next work item.'
     )
+
+
+def _check_handoff():
+    sys.path.insert(0, str(KIT / 'runtime/python'))
+    from agentic_runtime import handoff
+    parts = []
+    note = handoff.read_handoff(REPO_ROOT)
+    if note:
+        parts.append(f'HANDOFF NOTE (.agent/HANDOFF.md):\n{note}')
+    session = handoff.read_latest_session(REPO_ROOT)
+    if session:
+        parts.append(f'LATEST SESSION (.agent/sessions/):\n{session}')
+    return '\n\n'.join(parts) or None
 
 
 def main():
@@ -94,6 +105,12 @@ def main():
             'Midflight state is UNKNOWN. Do not start new governed work. '
             f'Run doctor and reconcile the database/marker: {exc}'
         )
+    try:
+        handoff_context = _check_handoff()
+    except Exception as exc:
+        handoff_context = f'Could not read cross-agent handoff notes: {exc}'
+    if handoff_context:
+        context = f'{context}\n\n{handoff_context}'
     return _emit(context)
 
 
