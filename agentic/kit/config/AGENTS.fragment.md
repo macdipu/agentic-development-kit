@@ -22,5 +22,6 @@ Read `.agent/HANDOFF.md` and the latest `.agent/sessions/*.md` entry before
 starting work (or run `agentic_runtime.cli pickup`) -- cross-agent-platform
 handoff notes any agent, on any platform, can read after `git pull`. When
 finishing a work session, run `agentic_runtime.cli close-session --agent
-<claude|codex> --summary "..."` (automatic via the `Stop` hook where supported)
-so the next agent, on this platform or another, can continue from git alone.
+<claude|codex> --task "..." --completed "..." --next-action "..."` (automatic
+via the `Stop` hook where supported) so the next agent, on this platform or
+another, can continue from git alone.

@@ -34,9 +34,15 @@ continue from git alone:
 
 ```
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \\
-  --agent {agent} --summary "what you did" --goal "what this run is for" \\
-  --next-step "what to do next"
+  --agent {agent} --task "what this run is for" --completed "what you did" \\
+  --changed-files path/one path/two --tests "npm test passes" \\
+  --blockers "..." --decisions "..." --next-action "what to do next"
 ```
+
+`--changed-files`, `--tests`, `--blockers`, and `--decisions` are optional;
+`--agent`, `--task`, and `--completed` are not. Structured fields, not one
+free-form summary, so the next agent can read a specific field instead of
+parsing prose.
 
 This writes `.agent/HANDOFF.md` and a new `.agent/sessions/<timestamp>-{agent}.md`
 record, both git-tracked (unlike this kit's own local run store under
@@ -109,10 +115,11 @@ def _scaffold_handoff(put, target):
     if not (target / '.agent').exists():
         put('.agent/sessions/.gitkeep', '')
         put('.agent/HANDOFF.md', handoff.render_handoff(
-            last_agent='claude', status='NOT_STARTED', goal='(not started)',
-            summary='Project scaffolded; no session has run yet.',
-            next_step='Start the first governed run or work item.',
-            git_snapshot_text=handoff.git_snapshot(target), notes=''))
+            last_agent='claude', operator=handoff.git_user(target), status='NOT_STARTED',
+            task='(not started)', completed='Project scaffolded; no session has run yet.',
+            changed_files=[], tests='', blockers='',
+            decisions='', next_action='Start the first governed run or work item.',
+            git_snapshot_text=handoff.git_snapshot(target)))
     if not (target / '.claude/skills/agent-handoff/SKILL.md').exists():
         put('.claude/skills/agent-handoff/SKILL.md', _handoff_skill('claude', '/agent-handoff'))
     if not (target / '.codex/skills/agent-handoff/SKILL.md').exists():

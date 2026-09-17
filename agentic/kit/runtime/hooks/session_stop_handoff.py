@@ -32,16 +32,18 @@ def _close_active_run():
     if run is None:
         return None
     task = run.metadata.get('active_task') or {}
-    summary = f"stage={run.stage} status={run.status} title={run.title!r}"
-    next_step = (
+    changed_files = sorted(run.metadata.get('context', {}).get('files', {}))
+    next_action = (
         f"Resume task {task['id']} (skill {task['skill']}) via task-finish/task-fail, "
         f"then `agentic_runtime.cli show {run.run_id}`."
         if task else f"Continue via `agentic_runtime.cli show {run.run_id}`."
     )
     result = handoff.close_session(
-        REPO_ROOT, agent='claude', summary=summary, status=run.status,
-        goal=run.title, next_step=next_step,
-        notes='Written by session_stop_handoff.py; a governed task/run was active when Claude stopped.',
+        REPO_ROOT, agent='claude', status=run.status, task=run.title,
+        completed=f"Reached stage {run.stage} (status {run.status}).",
+        changed_files=changed_files,
+        blockers='Task was still active when Claude stopped.' if task else '',
+        next_action=next_action,
     )
     return f"Wrote handoff notes for run {run.run_id} ({result['handoff']})."
 

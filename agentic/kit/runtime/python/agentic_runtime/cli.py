@@ -128,9 +128,11 @@ def _cmd_guard(args, store, orch):
 
 
 def _cmd_close_session(args, store, orch):
-    return handoff.close_session(args.repo, agent=args.agent, summary=args.summary,
-                                  status=args.status, goal=args.goal,
-                                  next_step=args.next_step, notes=args.notes)
+    return handoff.close_session(args.repo, agent=args.agent, status=args.status,
+                                  task=args.task, completed=args.completed,
+                                  changed_files=args.changed_files, tests=args.tests,
+                                  blockers=args.blockers, decisions=args.decisions,
+                                  next_action=args.next_action)
 
 
 def _cmd_impact(args, store, orch):
@@ -236,11 +238,14 @@ def main(argv=None):
     pickup.add_argument('--repo', type=Path, default=REPO_ROOT)
     close_session = sub.add_parser('close-session', help='Write .agent/HANDOFF.md + a session record for cross-agent-platform handoff (agent-handoff compatible)')
     close_session.add_argument('--agent', required=True, choices=sorted(handoff.VALID_AGENTS))
-    close_session.add_argument('--summary', required=True)
+    close_session.add_argument('--task', required=True, help='What this run/session is for')
+    close_session.add_argument('--completed', required=True, help='What was done this session')
+    close_session.add_argument('--changed-files', nargs='*', default=[], dest='changed_files')
+    close_session.add_argument('--tests', default='', help='Test results, e.g. "npm test passes"')
+    close_session.add_argument('--blockers', default='')
+    close_session.add_argument('--decisions', default='', help='Notable decisions made this session')
+    close_session.add_argument('--next-action', default='', dest='next_action')
     close_session.add_argument('--status', default='COMPLETED')
-    close_session.add_argument('--goal', default='')
-    close_session.add_argument('--next-step', default='', dest='next_step')
-    close_session.add_argument('--notes', default='')
     close_session.add_argument('--repo', type=Path, default=REPO_ROOT)
     args = parser.parse_args(argv)
     try:

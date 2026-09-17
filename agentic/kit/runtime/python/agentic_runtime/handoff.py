@@ -11,11 +11,16 @@ continue the same work from what's in git -- no server, no shared runtime.
 
 Upstream restricts `agent` to exactly "claude" or "codex"; this module keeps
 that restriction so files stay valid input to the real agent-handoff CLI too.
+
+Handoff content is structured (task/completed/changed_files/tests/blockers/
+decisions/next_action) rather than one free-form summary string, so a picking-up
+agent -- or a script -- can read a specific field instead of parsing prose, and
+so a closing agent can't skip a category by writing one vague sentence.
 """
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 VALID_AGENTS = ("claude", "codex")
 
@@ -30,6 +35,11 @@ def _stamp_for_filename(ts: str) -> str:
     return dt.strftime("%Y-%m-%dT%H-%M-%S-") + f"{dt.microsecond // 1000:03d}Z"
 
 
+def _bullet_list(items: Optional[Iterable[str]]) -> str:
+    items = list(items or [])
+    return "\n".join(f"- {item}" for item in items) if items else "(none)"
+
+
 def git_snapshot(repo_root) -> str:
     """Branch, most recent commit, and short status -- the same three facts upstream embeds."""
     root = Path(repo_root)
@@ -42,78 +52,117 @@ def git_snapshot(repo_root) -> str:
     return f"Branch: {branch}\nRecent commit: {commit}\nStatus:\n{status}"
 
 
+def git_user(repo_root) -> str:
+    """The configured git identity running this session -- distinct from `agent`
+    (claude/codex), since more than one person can drive either platform on a
+    shared project. Falls back to whatever half of name/email is configured."""
+    root = Path(repo_root)
+    def run(*args):
+        result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10)
+        return result.stdout.strip() if result.returncode == 0 else ""
+    name = run("config", "user.name")
+    email = run("config", "user.email")
+    if name and email:
+        return f"{name} <{email}>"
+    return name or email or "(unknown)"
+
+
 def _validate_agent(agent: str):
     if agent not in VALID_AGENTS:
         raise ValueError(f"agent must be one of {VALID_AGENTS}, got {agent!r}")
 
 
-def render_handoff(*, last_agent: str, status: str, goal: str, summary: str,
-                    next_step: str, git_snapshot_text: str, notes: str = "", ts: Optional[str] = None) -> str:
+def render_handoff(*, last_agent: str, operator: str, status: str, task: str, completed: str,
+                    changed_files: Optional[Iterable[str]], tests: str, blockers: str,
+                    decisions: str, next_action: str, git_snapshot_text: str,
+                    ts: Optional[str] = None) -> str:
     _validate_agent(last_agent)
     return (
         f"Last updated: {ts or _now_iso()}\n"
         f"Last agent: {last_agent}\n"
+        f"Operator: {operator}\n"
         f"Current status: {status}\n"
-        "\n## Current Goal\n"
-        f"{goal}\n"
-        "\n## Latest Summary\n"
-        f"{summary}\n"
-        "\n## Next Step\n"
-        f"{next_step}\n"
+        "\n## Task\n"
+        f"{task}\n"
+        "\n## Completed\n"
+        f"{completed}\n"
+        "\n## Changed Files\n"
+        f"{_bullet_list(changed_files)}\n"
+        "\n## Tests\n"
+        f"{tests or '(none run)'}\n"
+        "\n## Blockers\n"
+        f"{blockers or '(none)'}\n"
+        "\n## Decisions\n"
+        f"{decisions or '(none)'}\n"
+        "\n## Next Action\n"
+        f"{next_action}\n"
         "\n## Git Snapshot\n"
         f"```text\n{git_snapshot_text}\n```\n"
-        "\n## Notes For Next Agent\n"
-        f"{notes}\n"
     )
 
 
-def write_handoff(repo_root, *, last_agent: str, status: str, goal: str, summary: str,
-                   next_step: str, git_snapshot_text: str, notes: str = "", ts: Optional[str] = None) -> Path:
+def write_handoff(repo_root, *, ts: Optional[str] = None, **fields) -> Path:
     path = Path(repo_root) / ".agent" / "HANDOFF.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    content = render_handoff(last_agent=last_agent, status=status, goal=goal, summary=summary,
-                              next_step=next_step, git_snapshot_text=git_snapshot_text, notes=notes, ts=ts)
-    path.write_text(content)
+    path.write_text(render_handoff(ts=ts, **fields))
     return path
 
 
-def write_session(repo_root, *, agent: str, summary: str, git_snapshot_text: str,
-                   pickup_guidance: str, ts: Optional[str] = None) -> Path:
+def render_session(*, agent: str, operator: str, ended: str, git_snapshot_text: str, task: str,
+                    completed: str, changed_files: Optional[Iterable[str]], tests: str,
+                    blockers: str, decisions: str, next_action: str) -> str:
     _validate_agent(agent)
+    lines = git_snapshot_text.splitlines()
+    branch = next((l.split(": ", 1)[1] for l in lines if l.startswith("Branch: ")), "")
+    commit = next((l.split(": ", 1)[1] for l in lines if l.startswith("Recent commit: ")), "")
+    return (
+        f"- Agent: {agent}\n"
+        f"- Operator: {operator}\n"
+        f"- Ended: {ended}\n"
+        f"- Branch: {branch}\n"
+        f"- Recent commit: {commit}\n"
+        "\n## Task\n"
+        f"{task}\n"
+        "\n## Completed\n"
+        f"{completed}\n"
+        "\n## Changed Files\n"
+        f"{_bullet_list(changed_files)}\n"
+        "\n## Tests\n"
+        f"{tests or '(none run)'}\n"
+        "\n## Blockers\n"
+        f"{blockers or '(none)'}\n"
+        "\n## Decisions\n"
+        f"{decisions or '(none)'}\n"
+        "\n## Next Action\n"
+        f"{next_action}\n"
+        "\n## Git Status\n"
+        f"```text\n{git_snapshot_text}\n```\n"
+    )
+
+
+def write_session(repo_root, *, agent: str, ts: Optional[str] = None, **fields) -> Path:
     ts = ts or _now_iso()
     sessions_dir = Path(repo_root) / ".agent" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     path = sessions_dir / f"{_stamp_for_filename(ts)}-{agent}.md"
-    lines = git_snapshot_text.splitlines()
-    branch = next((l.split(": ", 1)[1] for l in lines if l.startswith("Branch: ")), "")
-    commit = next((l.split(": ", 1)[1] for l in lines if l.startswith("Recent commit: ")), "")
-    content = (
-        f"- Agent: {agent}\n"
-        f"- Ended: {ts}\n"
-        f"- Branch: {branch}\n"
-        f"- Recent commit: {commit}\n"
-        "\n## Summary\n"
-        f"{summary}\n"
-        "\n## Git Status\n"
-        f"```text\n{git_snapshot_text}\n```\n"
-        "\n## Pickup Guidance\n"
-        f"{pickup_guidance}\n"
-    )
-    path.write_text(content)
+    path.write_text(render_session(agent=agent, ended=ts, **fields))
     return path
 
 
-def close_session(repo_root, *, agent: str, summary: str, status: str = "COMPLETED",
-                   goal: str = "", next_step: str = "", notes: str = "",
-                   pickup_guidance: str = "") -> dict:
+def close_session(repo_root, *, agent: str, task: str, completed: str,
+                   changed_files: Optional[Iterable[str]] = None, tests: str = "",
+                   blockers: str = "", decisions: str = "", next_action: str = "",
+                   status: str = "COMPLETED") -> dict:
     """Mirror upstream's `close-session`: write a session file, then rewrite HANDOFF.md from it."""
     _validate_agent(agent)
+    changed_files = list(changed_files or [])
     snapshot = git_snapshot(repo_root)
-    session_path = write_session(repo_root, agent=agent, summary=summary,
-                                  git_snapshot_text=snapshot, pickup_guidance=pickup_guidance or summary)
-    handoff_path = write_handoff(repo_root, last_agent=agent, status=status, goal=goal,
-                                  summary=summary, next_step=next_step,
-                                  git_snapshot_text=snapshot, notes=notes)
+    operator = git_user(repo_root)
+    fields = dict(task=task, completed=completed, changed_files=changed_files, tests=tests,
+                  blockers=blockers, decisions=decisions, next_action=next_action)
+    session_path = write_session(repo_root, agent=agent, operator=operator, git_snapshot_text=snapshot, **fields)
+    handoff_path = write_handoff(repo_root, last_agent=agent, operator=operator, status=status,
+                                  git_snapshot_text=snapshot, **fields)
     return {"session": str(session_path), "handoff": str(handoff_path)}
 
 
