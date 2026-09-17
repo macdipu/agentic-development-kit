@@ -29,7 +29,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'runtime/python'))
-from agentic_runtime.paths import KIT, ACTIVE_TASK_POINTER
+from agentic_runtime.paths import ACTIVE_TASK_POINTER
 
 NUDGE = (
     'Context compaction is about to happen. Before this turn ends: '
@@ -48,15 +48,8 @@ def _emit(message):
 
 
 def _checkpoint_active_task():
-    if not ACTIVE_TASK_POINTER.exists():
-        return None
-    pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
-    if not Path(pointer['store_dir']).is_dir():
-        raise ValueError('Active-task store is missing')
-    sys.path.insert(0, str(KIT / 'runtime/python'))
-    from agentic_runtime.store import RuntimeStore
-    store = RuntimeStore(pointer['store_dir'])
-    run = store.get_run(pointer['run_id'])
+    from agentic_runtime.hooks_support import load_active_task
+    _pointer, store, run = load_active_task(ACTIVE_TASK_POINTER)
     if run is None:
         return None
     ts = datetime.now(timezone.utc).isoformat()

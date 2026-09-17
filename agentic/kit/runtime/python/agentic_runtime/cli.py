@@ -16,6 +16,151 @@ from agentic_runtime.paths import KIT, AGENTIC, REPO_ROOT, RUNS_DIR, ACTIVE_TASK
 from agentic_runtime import markers, handoff
 from agentic_runtime.timing import now
 
+
+def _cmd_init(args, store, orch):
+    return {'store_dir': str(args.store_dir.resolve())}
+
+
+def _cmd_list(args, store, orch):
+    return store.list_runs()
+
+
+def _cmd_start(args, store, orch):
+    return orch.start(args.project, args.type, args.title, args.dry_run, args.repo, args.planning)
+
+
+def _cmd_show(args, store, orch):
+    run = store.get_run(args.run_id)
+    if run is None:
+        raise ValueError('Unknown run')
+    return run
+
+
+def _cmd_eligible(args, store, orch):
+    return orch.eligible_skills(args.run_id)
+
+
+def _cmd_transition(args, store, orch):
+    return orch.transition(args.run_id, args.stage)
+
+
+def _cmd_approve(args, store, orch):
+    return orch.approve(args.run_id, args.gate, args.by, args.decision, args.comment)
+
+
+def _cmd_context(args, store, orch):
+    return orch.record_context(args.run_id, args.paths)
+
+
+def _cmd_timing(args, store, orch):
+    return orch.task_timings(args.run_id, args.task)
+
+
+def _cmd_result(args, store, orch):
+    submitted = json.loads(args.file.read_text())
+    return orch.execute(args.run_id, args.skill, lambda context, call_tool: submitted)
+
+
+def _cmd_reopen(args, store, orch):
+    return orch.reopen(args.run_id, args.reason)
+
+
+def _cmd_recover(args, store, orch):
+    output = orch.recover(args.run_id, args.reason)
+    markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
+    return output
+
+
+def _cmd_repair_marker(args, store, orch):
+    if not args.reason.strip() or any(r['metadata'].get('active_task') for r in store.list_runs()):
+        raise ValueError('Recover active database tasks before repairing their marker')
+    # Explicit operator recovery; retain damaged contents for diagnosis.
+    if ACTIVE_TASK_POINTER.exists():
+        try:
+            pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
+        except ValueError:
+            pointer = {}
+        if isinstance(pointer, dict) and pointer.get('store_dir') and Path(pointer['store_dir']).resolve() != args.store_dir.resolve():
+            raise ValueError('Marker belongs to a different store; select it explicitly with --store-dir')
+        backup = ACTIVE_TASK_POINTER.with_name('active-task.recovered-' + uuid.uuid4().hex + '.json')
+        ACTIVE_TASK_POINTER.rename(backup)
+        store.audit('marker-recovery', 'MARKER_RECOVERED', {'reason': args.reason, 'backup': str(backup)}, now())
+    return {'repaired': True}
+
+
+def _cmd_task_start(args, store, orch):
+    markers.reserve(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
+    task = None
+    try:
+        task, context = orch.start_task(args.run_id, args.skill)
+        markers.activate(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, task['id'])
+    except BaseException as exc:
+        if task:
+            orch.fail_task(args.run_id, task['id'], exc)
+        markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
+        raise
+    return {'task_id': task['id'], 'context': context}
+
+
+def _cmd_call_tool(args, store, orch):
+    run = store.get_run(args.run_id)
+    if run is None:
+        raise ValueError('Unknown run')
+    tools = build_default_tools(run.metadata['repo'], orch.allowed_commands)
+    return Orchestrator(store, KIT, tools).call_tool(args.run_id, args.task_id, args.name, json.loads(args.args), args.idempotency_key)
+
+
+def _cmd_task_finish(args, store, orch):
+    submitted = json.loads(args.file.read_text())
+    output = orch.finish_task(args.run_id, args.task_id, submitted)
+    markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, args.task_id)
+    return output
+
+
+def _cmd_task_fail(args, store, orch):
+    orch.fail_task(args.run_id, args.task_id, args.error)
+    markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, args.task_id)
+    return {'task_id': args.task_id, 'failed': True}
+
+
+def _cmd_guard(args, store, orch):
+    return orch.guard(args.run_id, args.task_id, args.tool, args.command, json.loads(args.input))
+
+
+def _cmd_close_session(args, store, orch):
+    return handoff.close_session(args.repo, agent=args.agent, summary=args.summary,
+                                  status=args.status, goal=args.goal,
+                                  next_step=args.next_step, notes=args.notes)
+
+
+def _cmd_impact(args, store, orch):
+    edges = json.loads(args.edges.read_text())
+    if not isinstance(edges, dict) or not all(isinstance(v, list) for v in edges.values()):
+        raise ValueError('Edges file must map module name to a list of dependent module names')
+    graph = DependencyGraph()
+    for module, dependents in edges.items():
+        for dependent in dependents:
+            graph.add(module, dependent)
+    return {'modules': graph.closure(args.modules)}
+
+
+def _cmd_cancel(args, store, orch):
+    output = orch.cancel(args.run_id)
+    markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
+    return output
+
+
+COMMANDS = {
+    'init': _cmd_init, 'list': _cmd_list, 'start': _cmd_start, 'show': _cmd_show,
+    'eligible': _cmd_eligible, 'transition': _cmd_transition, 'approve': _cmd_approve,
+    'context': _cmd_context, 'timing': _cmd_timing, 'result': _cmd_result,
+    'reopen': _cmd_reopen, 'recover': _cmd_recover, 'repair-marker': _cmd_repair_marker,
+    'task-start': _cmd_task_start, 'call-tool': _cmd_call_tool, 'task-finish': _cmd_task_finish,
+    'task-fail': _cmd_task_fail, 'guard': _cmd_guard, 'close-session': _cmd_close_session,
+    'impact': _cmd_impact, 'cancel': _cmd_cancel,
+}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Local governed workflow runtime (trusted operator)')
     parser.add_argument('--store-dir', type=Path, default=RUNS_DIR, dest='store_dir')
@@ -118,92 +263,7 @@ def main(argv=None):
             return 0
         store = RuntimeStore(str(args.store_dir))
         orch = Orchestrator(store, KIT)
-        if args.cmd == 'init':
-            output = {'store_dir': str(args.store_dir.resolve())}
-        elif args.cmd == 'list':
-            output = store.list_runs()
-        elif args.cmd == 'start':
-            output = orch.start(args.project, args.type, args.title, args.dry_run, args.repo, args.planning)
-        elif args.cmd == 'show':
-            output = store.get_run(args.run_id)
-            if output is None:
-                raise ValueError('Unknown run')
-        elif args.cmd == 'eligible':
-            output = orch.eligible_skills(args.run_id)
-        elif args.cmd == 'transition':
-            output = orch.transition(args.run_id, args.stage)
-        elif args.cmd == 'approve':
-            output = orch.approve(args.run_id, args.gate, args.by, args.decision, args.comment)
-        elif args.cmd == 'context':
-            output = orch.record_context(args.run_id, args.paths)
-        elif args.cmd == 'timing':
-            output = orch.task_timings(args.run_id, args.task)
-        elif args.cmd == 'result':
-            submitted = json.loads(args.file.read_text())
-            output = orch.execute(args.run_id, args.skill, lambda context, call_tool: submitted)
-        elif args.cmd in {'reopen', 'recover'}:
-            output = getattr(orch, args.cmd)(args.run_id, args.reason)
-            if args.cmd == 'recover':
-                markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
-        elif args.cmd == 'repair-marker':
-            if not args.reason.strip() or any(r['metadata'].get('active_task') for r in store.list_runs()):
-                raise ValueError('Recover active database tasks before repairing their marker')
-            # Explicit operator recovery; retain damaged contents for diagnosis.
-            if ACTIVE_TASK_POINTER.exists():
-                try:
-                    pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
-                except ValueError:
-                    pointer = {}
-                if isinstance(pointer, dict) and pointer.get('store_dir') and Path(pointer['store_dir']).resolve() != args.store_dir.resolve():
-                    raise ValueError('Marker belongs to a different store; select it explicitly with --store-dir')
-                backup = ACTIVE_TASK_POINTER.with_name('active-task.recovered-' + uuid.uuid4().hex + '.json')
-                ACTIVE_TASK_POINTER.rename(backup)
-                store.audit('marker-recovery', 'MARKER_RECOVERED', {'reason': args.reason, 'backup': str(backup)}, now())
-            output = {'repaired': True}
-        elif args.cmd == 'task-start':
-            markers.reserve(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
-            task = None
-            try:
-                task, context = orch.start_task(args.run_id, args.skill)
-                markers.activate(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, task['id'])
-            except BaseException as exc:
-                if task:
-                    orch.fail_task(args.run_id, task['id'], exc)
-                markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
-                raise
-            output = {'task_id': task['id'], 'context': context}
-        elif args.cmd == 'call-tool':
-            run = store.get_run(args.run_id)
-            if run is None:
-                raise ValueError('Unknown run')
-            tools = build_default_tools(run.metadata['repo'], orch.allowed_commands)
-            output = Orchestrator(store, KIT, tools).call_tool(args.run_id, args.task_id, args.name, json.loads(args.args), args.idempotency_key)
-        elif args.cmd == 'task-finish':
-            submitted = json.loads(args.file.read_text())
-            output = orch.finish_task(args.run_id, args.task_id, submitted)
-            markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, args.task_id)
-        elif args.cmd == 'task-fail':
-            orch.fail_task(args.run_id, args.task_id, args.error)
-            markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id, args.task_id)
-            output = {'task_id': args.task_id, 'failed': True}
-        elif args.cmd == 'guard':
-            output = orch.guard(args.run_id, args.task_id, args.tool, args.command, json.loads(args.input))
-        elif args.cmd == 'close-session':
-            output = handoff.close_session(args.repo, agent=args.agent, summary=args.summary,
-                                            status=args.status, goal=args.goal,
-                                            next_step=args.next_step, notes=args.notes)
-        elif args.cmd == 'impact':
-            edges = json.loads(args.edges.read_text())
-            if not isinstance(edges, dict) or not all(isinstance(v, list) for v in edges.values()):
-                raise ValueError('Edges file must map module name to a list of dependent module names')
-            graph = DependencyGraph()
-            for module, dependents in edges.items():
-                for dependent in dependents:
-                    graph.add(module, dependent)
-            output = {'modules': graph.closure(args.modules)}
-        else:
-            output = orch.cancel(args.run_id)
-            markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
+        output = COMMANDS[args.cmd](args, store, orch)
         print(json.dumps(output.to_dict() if hasattr(output, 'to_dict') else output, indent=2))
         return 0
     except (ValueError, OSError, RuntimeError, TimeoutError) as exc:

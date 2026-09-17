@@ -32,18 +32,14 @@ def main():
         tool_name = payload.get('tool_name')
         if tool_name not in GOVERNED_TOOLS:
             return _emit('allow', 'Tool is not governed by the harness')
-        pointer = json.loads(STATE.read_text())
     except (OSError, ValueError) as exc:
         return _emit('deny', 'Cannot verify governed state. Run doctor and repair-marker after stopping workers: ' + str(exc))
     try:
-        sys.path.insert(0, str(KIT / 'runtime/python'))
+        from agentic_runtime.hooks_support import load_active_task
         from agentic_runtime.orchestrator import Orchestrator
-        from agentic_runtime.store import RuntimeStore
         tool_input = payload.get('tool_input') or {}
         command = tool_input.get('command') if tool_name == 'Bash' else None
-        if not Path(pointer['store_dir']).is_dir():
-            raise ValueError('Active task store is missing; restore it before recovery')
-        store = RuntimeStore(pointer['store_dir'])
+        pointer, store, _run = load_active_task(STATE)
         Orchestrator(store, KIT).guard(pointer['run_id'], pointer['task_id'], tool_name, command, tool_input)
     except (PermissionError, ValueError, TimeoutError) as exc:
         return _emit('deny', str(exc))

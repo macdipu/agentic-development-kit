@@ -11,12 +11,15 @@ LOCK_TIMEOUT_SECONDS = 10.0
 class RuntimeStore:
     """Governed run state as one JSON file per run under `store_dir`.
 
-    Local-only, gitignored (mirrors the previous sqlite file's scope): each
-    run's runs/checkpoints/approvals/timing/audit/tool-call records live in
-    `<store_dir>/<run_id>.json`, written atomically via write-temp+os.replace.
-    An exclusive-create lock file guards concurrent writers on one machine;
-    it does not coordinate across machines/clones (same limitation the prior
-    sqlite file had for anything beyond a single local db).
+    Local-only, gitignored: each run's runs/checkpoints/approvals/timing/audit/
+    tool-call records live in `<store_dir>/<run_id>.json`, written atomically via
+    write-temp+os.replace. An exclusive-create lock file guards concurrent
+    writers on one machine; it does not coordinate across machines/clones.
+
+    No in-memory cache: every non-transactional call (`get_run`, `has_approval`,
+    `query_timing`) re-reads and re-parses its run's file from disk. Fine at this
+    kit's scale; a caller doing many such calls in a tight loop pays a real disk
+    round trip each time, unlike a kept-open database connection.
     """
 
     def __init__(self, store_dir: str):

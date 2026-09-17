@@ -43,6 +43,31 @@ def detect_project(root):
     return {'frameworks': frameworks, 'commands': commands, 'unknowns': unknowns}
 
 
+def _assert_pretooluse_denies_source_write(hook, root):
+    denied = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'source.py')}})
+    if denied['hookSpecificOutput']['permissionDecision'] != 'deny':
+        raise ValueError('Hook permitted an unauthorized source write')
+
+
+def _assert_pretooluse_allows_artifact_write(hook, root):
+    allowed = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'agentic/data/artifacts/result.md')}})
+    if allowed['hookSpecificOutput']['permissionDecision'] != 'allow':
+        raise ValueError('Hook denied a permitted document write')
+
+
+def _assert_session_start_identifies_run(hook, run):
+    session = hook('session_start_check.py')
+    if run.run_id not in session['hookSpecificOutput']['additionalContext']:
+        raise ValueError('Session hook did not identify the active run')
+
+
+def _assert_precompact_persists_checkpoint(hook, runs_dir, run):
+    hook('precompact_checkpoint.py')
+    audit_events = json.loads((runs_dir / f'{run.run_id}.json').read_text()).get('audit_events', [])
+    if not any(e['event'] == 'precompact_checkpoint' for e in audit_events):
+        raise ValueError('Compaction hook did not persist its checkpoint')
+
+
 def probe_hooks(kit):
     from .markers import activate
     from .orchestrator import Orchestrator
@@ -67,19 +92,10 @@ def probe_hooks(kit):
             if result.returncode:
                 raise ValueError(result.stderr)
             return json.loads(result.stdout)
-        denied = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'source.py')}})
-        if denied['hookSpecificOutput']['permissionDecision'] != 'deny':
-            raise ValueError('Hook permitted an unauthorized source write')
-        allowed = hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(root / 'agentic/data/artifacts/result.md')}})
-        if allowed['hookSpecificOutput']['permissionDecision'] != 'allow':
-            raise ValueError('Hook denied a permitted document write')
-        session = hook('session_start_check.py')
-        if run.run_id not in session['hookSpecificOutput']['additionalContext']:
-            raise ValueError('Session hook did not identify the active run')
-        hook('precompact_checkpoint.py')
-        audit_events = json.loads((runs_dir / f'{run.run_id}.json').read_text()).get('audit_events', [])
-        if not any(e['event'] == 'precompact_checkpoint' for e in audit_events):
-            raise ValueError('Compaction hook did not persist its checkpoint')
+        _assert_pretooluse_denies_source_write(hook, root)
+        _assert_pretooluse_allows_artifact_write(hook, root)
+        _assert_session_start_identifies_run(hook, run)
+        _assert_precompact_persists_checkpoint(hook, runs_dir, run)
 
 
 def diagnose(root):

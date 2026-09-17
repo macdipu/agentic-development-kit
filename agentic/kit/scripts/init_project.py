@@ -49,6 +49,134 @@ def _handoff_skill(agent, invoke):
     return HANDOFF_SKILL.format(agent=agent, invoke=invoke)
 
 
+def _resolve_mode_agent(target, mode, agent, previous):
+    """Default reruns retain an explicitly chosen mode and platform."""
+    mode = mode or previous.get('mode', 'instruction-only')
+    agent = agent or previous.get('agent', 'claude' if (target / '.claude').is_dir()
+                                   else 'codex' if (target / '.codex').is_dir() else 'cli')
+    if previous.get('mode') == 'local-harness' and mode != previous['mode']:
+        raise ValueError('Mode downgrade requires removing hooks and reconciling runs manually')
+    return mode, agent
+
+
+def _stage_kit(put, changed, stage, target, source, upgrade):
+    """Copy the kit tree into stage; upgrades preserve existing config/*.json."""
+    kit_relative = 'agentic/kit'
+    current_kit = target / kit_relative
+    kit_source = current_kit if current_kit.exists() and not upgrade else source / 'kit'
+    shutil.copytree(kit_source, stage / kit_relative, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    if upgrade and current_kit.exists():
+        # Preserve project configuration. New configuration files are supplied
+        # by the new kit; existing policy choices are never silently replaced.
+        for file in (current_kit / 'config').glob('*.json'):
+            shutil.copy2(file, stage / kit_relative / 'config' / file.name)
+    if not current_kit.exists() or upgrade:
+        changed.append(kit_relative)
+    return current_kit
+
+
+def _stage_docs_and_instructions(put, stage, target, source):
+    for name in DOCS:
+        relative = 'agentic/' + name
+        current = target / relative
+        put(relative, current.read_text() if current.exists() else (source / name).read_text())
+    fragment = (stage / 'agentic/kit/config/AGENTS.fragment.md').read_text()
+    for name, addition in [('AGENTS.md', fragment), ('CLAUDE.md', '@AGENTS.md\n')]:
+        current = (target / name).read_text() if (target / name).exists() else ''
+        put(name, managed_text(current, addition))
+    ignore = (target / '.gitignore').read_text() if (target / '.gitignore').exists() else ''
+    additions = [line for line in IGNORE if line not in ignore.splitlines()]
+    put('.gitignore', ignore.rstrip('\n') + '\n' + '\n'.join(additions) + ('\n' if additions else ''))
+
+
+def _scaffold_project_context(put, target, source, project, project_type):
+    for relative in ['README.md', 'project-context/features/README.md']:
+        dest = 'agentic/data/' + relative
+        if not (target / dest).exists():
+            put(dest, (source / 'data' / relative).read_text())
+    identity = 'agentic/data/project-context/project.yaml'
+    if not (target / identity).exists():
+        put(identity, 'project: ' + json.dumps(project) + '\nproject_type: ' + project_type +
+            '\ncontext_status: MISSING\nmodules: []\nintegrations: []\n')
+    index = 'agentic/data/project-context/context-index.yaml'
+    if not (target / index).exists():
+        put(index, 'system:\n  status: MISSING\nmodules: {}\nfeatures: {}\n')
+
+
+def _scaffold_handoff(put, target):
+    """Cross-agent-platform handoff notes (agent-handoff compatible, git-tracked
+    unlike agentic/data/runtime/state/): scaffold once, never clobber live notes."""
+    if not (target / '.agent').exists():
+        put('.agent/sessions/.gitkeep', '')
+        put('.agent/HANDOFF.md', handoff.render_handoff(
+            last_agent='claude', status='NOT_STARTED', goal='(not started)',
+            summary='Project scaffolded; no session has run yet.',
+            next_step='Start the first governed run or work item.',
+            git_snapshot_text=handoff.git_snapshot(target), notes=''))
+    if not (target / '.claude/skills/agent-handoff/SKILL.md').exists():
+        put('.claude/skills/agent-handoff/SKILL.md', _handoff_skill('claude', '/agent-handoff'))
+    if not (target / '.codex/skills/agent-handoff/SKILL.md').exists():
+        put('.codex/skills/agent-handoff/SKILL.md', _handoff_skill('codex', '$agent-handoff'))
+
+
+def _stage_hooks_and_commands(put, stage, target, current_kit, mode, agent, detected):
+    command_path = stage / 'agentic/kit/config/allowed-commands.json'
+    # Generate project commands on the first install only. Upgrades preserve
+    # explicitly reviewed commands, including exact preview target arguments.
+    if not current_kit.exists():
+        command_path.write_text(json.dumps({'commands': detected['commands']}, indent=2) + '\n')
+    if mode == 'local-harness' and agent == 'claude':
+        relative = '.claude/settings.json'
+        current = json.loads((target / relative).read_text()) if (target / relative).exists() else {}
+        template = json.loads((stage / 'agentic/kit/config/hooks.json').read_text())
+        put(relative, json.dumps(merge_hooks(current, template), indent=2) + '\n')
+
+
+def _replace_files(target, stage, changed, backup, installed):
+    """Move each staged path into target, backing up whatever it replaces.
+
+    Appends (relative, existed) to `installed` as each succeeds, so a caller can
+    roll back exactly what was actually swapped in if a later step fails --
+    including a raise partway through this loop itself.
+    """
+    for relative in changed:
+        destination = target / relative
+        if destination.is_symlink():
+            raise ValueError('Refusing to replace a symlink: ' + relative)
+        if not destination.resolve().is_relative_to(target):
+            raise ValueError('Installation path escapes host project: ' + relative)
+        saved = backup / relative
+        existed = destination.exists()
+        if existed:
+            saved.parent.mkdir(parents=True, exist_ok=True)
+            if destination.is_dir():
+                shutil.copytree(destination, saved)
+            else:
+                shutil.copy2(destination, saved)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.is_dir():
+            # Move the old tree out before installing the validated tree.
+            moved = backup / 'replaced-kit'
+            os.replace(destination, moved)
+        installed.append((relative, existed))
+        os.replace(stage / relative, destination)
+
+
+def _rollback(target, backup, installed):
+    for relative, existed in reversed(installed):
+        destination = target / relative
+        if destination.is_dir():
+            shutil.rmtree(destination)
+        else:
+            destination.unlink(missing_ok=True)
+        if existed:
+            saved = backup / relative
+            if saved.is_dir():
+                shutil.copytree(saved, destination)
+            else:
+                shutil.copy2(saved, destination)
+
+
 def install(target, project, project_type, mode, agent, upgrade=False):
     target = Path(target).resolve()
     if target == ROOT:
@@ -62,12 +190,7 @@ def install(target, project, project_type, mode, agent, upgrade=False):
     source = ROOT / 'agentic'
     existing_install = target / 'agentic/data/project-context/installation.json'
     previous = json.loads(existing_install.read_text()) if existing_install.exists() else {}
-    # Default reruns retain an explicitly chosen mode and platform.
-    mode = mode or previous.get('mode', 'instruction-only')
-    agent = agent or previous.get('agent', 'claude' if (target / '.claude').is_dir()
-                                   else 'codex' if (target / '.codex').is_dir() else 'cli')
-    if previous.get('mode') == 'local-harness' and mode != previous['mode']:
-        raise ValueError('Mode downgrade requires removing hooks and reconciling runs manually')
+    mode, agent = _resolve_mode_agent(target, mode, agent, previous)
     with tempfile.TemporaryDirectory(prefix='agentic-stage-', dir=target.parent) as temporary:
         stage = Path(temporary)
         changed = []
@@ -78,67 +201,13 @@ def install(target, project, project_type, mode, agent, upgrade=False):
             path.write_text(content, encoding='utf-8')
             changed.append(relative)
 
-        kit_relative = 'agentic/kit'
-        current_kit = target / kit_relative
-        kit_source = current_kit if current_kit.exists() and not upgrade else source / 'kit'
-        shutil.copytree(kit_source, stage / kit_relative, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        if upgrade and current_kit.exists():
-            # Preserve project configuration. New configuration files are supplied
-            # by the new kit; existing policy choices are never silently replaced.
-            for file in (current_kit / 'config').glob('*.json'):
-                shutil.copy2(file, stage / kit_relative / 'config' / file.name)
-        if not current_kit.exists() or upgrade:
-            changed.append(kit_relative)
-
-        for name in DOCS:
-            relative = 'agentic/' + name
-            current = target / relative
-            put(relative, current.read_text() if current.exists() else (source / name).read_text())
-        fragment = (stage / 'agentic/kit/config/AGENTS.fragment.md').read_text()
-        for name, addition in [('AGENTS.md', fragment), ('CLAUDE.md', '@AGENTS.md\n')]:
-            current = (target / name).read_text() if (target / name).exists() else ''
-            put(name, managed_text(current, addition))
-        ignore = (target / '.gitignore').read_text() if (target / '.gitignore').exists() else ''
-        additions = [line for line in IGNORE if line not in ignore.splitlines()]
-        put('.gitignore', ignore.rstrip('\n') + '\n' + '\n'.join(additions) + ('\n' if additions else ''))
-
-        for relative in ['README.md', 'project-context/features/README.md']:
-            dest = 'agentic/data/' + relative
-            if not (target / dest).exists():
-                put(dest, (source / 'data' / relative).read_text())
-        identity = 'agentic/data/project-context/project.yaml'
-        if not (target / identity).exists():
-            put(identity, 'project: ' + json.dumps(project) + '\nproject_type: ' + project_type +
-                '\ncontext_status: MISSING\nmodules: []\nintegrations: []\n')
-        index = 'agentic/data/project-context/context-index.yaml'
-        if not (target / index).exists():
-            put(index, 'system:\n  status: MISSING\nmodules: {}\nfeatures: {}\n')
-
-        # Cross-agent-platform handoff notes (agent-handoff compatible, git-tracked
-        # unlike agentic/data/runtime/state/): scaffold once, never clobber live notes.
-        if not (target / '.agent').exists():
-            put('.agent/sessions/.gitkeep', '')
-            put('.agent/HANDOFF.md', handoff.render_handoff(
-                last_agent='claude', status='NOT_STARTED', goal='(not started)',
-                summary='Project scaffolded; no session has run yet.',
-                next_step='Start the first governed run or work item.',
-                git_snapshot_text=handoff.git_snapshot(target), notes=''))
-        if not (target / '.claude/skills/agent-handoff/SKILL.md').exists():
-            put('.claude/skills/agent-handoff/SKILL.md', _handoff_skill('claude', '/agent-handoff'))
-        if not (target / '.codex/skills/agent-handoff/SKILL.md').exists():
-            put('.codex/skills/agent-handoff/SKILL.md', _handoff_skill('codex', '$agent-handoff'))
+        current_kit = _stage_kit(put, changed, stage, target, source, upgrade)
+        _stage_docs_and_instructions(put, stage, target, source)
+        _scaffold_project_context(put, target, source, project, project_type)
+        _scaffold_handoff(put, target)
 
         detected = detect_project(target)
-        command_path = stage / 'agentic/kit/config/allowed-commands.json'
-        # Generate project commands on the first install only. Upgrades preserve
-        # explicitly reviewed commands, including exact preview target arguments.
-        if not current_kit.exists():
-            command_path.write_text(json.dumps({'commands': detected['commands']}, indent=2) + '\n')
-        if mode == 'local-harness' and agent == 'claude':
-            relative = '.claude/settings.json'
-            current = json.loads((target / relative).read_text()) if (target / relative).exists() else {}
-            template = json.loads((stage / 'agentic/kit/config/hooks.json').read_text())
-            put(relative, json.dumps(merge_hooks(current, template), indent=2) + '\n')
+        _stage_hooks_and_commands(put, stage, target, current_kit, mode, agent, detected)
         put('agentic/data/project-context/installation.json', json.dumps({
             'mode': mode, 'agent': agent, 'frameworks': detected['frameworks'],
             'unknowns': detected['unknowns'],
@@ -156,31 +225,12 @@ def install(target, project, project_type, mode, agent, upgrade=False):
             if result.returncode:
                 raise ValueError('Staged validation failed: ' + result.stderr + result.stdout)
         changed.append('agentic/MANIFEST.md')
+
         # Backups live outside the packaged tree and remain available after success.
         backup = target / 'agentic-backups' / uuid.uuid4().hex
         installed = []
         try:
-            for relative in changed:
-                destination = target / relative
-                if destination.is_symlink():
-                    raise ValueError('Refusing to replace a symlink: ' + relative)
-                if not destination.resolve().is_relative_to(target):
-                    raise ValueError('Installation path escapes host project: ' + relative)
-                saved = backup / relative
-                existed = destination.exists()
-                if existed:
-                    saved.parent.mkdir(parents=True, exist_ok=True)
-                    if destination.is_dir():
-                        shutil.copytree(destination, saved)
-                    else:
-                        shutil.copy2(destination, saved)
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                if destination.is_dir():
-                    # Move the old tree out before installing the validated tree.
-                    moved = backup / 'replaced-kit'
-                    os.replace(destination, moved)
-                installed.append((relative, existed))
-                os.replace(stage / relative, destination)
+            _replace_files(target, stage, changed, backup, installed)
             if mode == 'local-harness':
                 result = subprocess.run([sys.executable, 'agentic/kit/runtime/python/agentic_runtime/cli.py', 'init'],
                                         cwd=target, env=env, capture_output=True, text=True, timeout=30)
@@ -190,18 +240,7 @@ def install(target, project, project_type, mode, agent, upgrade=False):
             if not report['ok']:
                 raise ValueError('Installed doctor failed: ' + json.dumps(report))
         except BaseException:
-            for relative, existed in reversed(installed):
-                destination = target / relative
-                if destination.is_dir():
-                    shutil.rmtree(destination)
-                else:
-                    destination.unlink(missing_ok=True)
-                if existed:
-                    saved = backup / relative
-                    if saved.is_dir():
-                        shutil.copytree(saved, destination)
-                    else:
-                        shutil.copy2(saved, destination)
+            _rollback(target, backup, installed)
             raise
         return {'ok': True, 'mode': mode, 'agent': agent,
                 'backup': str(backup) if backup.exists() else None, 'doctor': report}

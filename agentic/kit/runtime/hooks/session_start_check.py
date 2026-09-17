@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'runtime/python'))
-from agentic_runtime.paths import KIT, REPO_ROOT, ACTIVE_TASK_POINTER, RUNS_DIR as DEFAULT_RUNS_DIR
+from agentic_runtime.paths import REPO_ROOT, ACTIVE_TASK_POINTER, RUNS_DIR as DEFAULT_RUNS_DIR
 UNFINISHED_STATUSES = {'RUNNING', 'BLOCKED'}
 
 
@@ -36,15 +36,10 @@ def _emit(context):
 
 
 def _check_active_task():
-    if not ACTIVE_TASK_POINTER.exists():
+    from agentic_runtime.hooks_support import load_active_task
+    pointer, _store, run = load_active_task(ACTIVE_TASK_POINTER)
+    if pointer is None:
         return None
-    pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
-    if not Path(pointer['store_dir']).is_dir():
-        raise ValueError('Active-task store is missing')
-    sys.path.insert(0, str(KIT / 'runtime/python'))
-    from agentic_runtime.store import RuntimeStore
-    store = RuntimeStore(pointer['store_dir'])
-    run = store.get_run(pointer['run_id'])
     detail = f"run_id={pointer['run_id']} task_id={pointer['task_id']}"
     if run:
         detail += f" stage={run.stage} status={run.status} title={run.title!r}"
@@ -59,7 +54,6 @@ def _check_active_task():
 def _check_unfinished_run():
     if not DEFAULT_RUNS_DIR.is_dir():
         return None
-    sys.path.insert(0, str(KIT / 'runtime/python'))
     from agentic_runtime.store import RuntimeStore
     store = RuntimeStore(str(DEFAULT_RUNS_DIR))
     runs = store.list_runs()
@@ -78,7 +72,6 @@ def _check_unfinished_run():
 
 
 def _check_handoff():
-    sys.path.insert(0, str(KIT / 'runtime/python'))
     from agentic_runtime import handoff
     parts = []
     note = handoff.read_handoff(REPO_ROOT)

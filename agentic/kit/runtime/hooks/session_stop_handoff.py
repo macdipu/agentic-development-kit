@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'runtime/python'))
-from agentic_runtime.paths import KIT, REPO_ROOT, ACTIVE_TASK_POINTER
+from agentic_runtime.paths import REPO_ROOT, ACTIVE_TASK_POINTER
 
 
 def _emit(message):
@@ -26,16 +26,9 @@ def _emit(message):
 
 
 def _close_active_run():
-    if not ACTIVE_TASK_POINTER.exists():
-        return None
-    pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
-    if not Path(pointer['store_dir']).is_dir():
-        raise ValueError('Active-task store is missing')
-    sys.path.insert(0, str(KIT / 'runtime/python'))
-    from agentic_runtime.store import RuntimeStore
+    from agentic_runtime.hooks_support import load_active_task
     from agentic_runtime import handoff
-    store = RuntimeStore(pointer['store_dir'])
-    run = store.get_run(pointer['run_id'])
+    _pointer, _store, run = load_active_task(ACTIVE_TASK_POINTER)
     if run is None:
         return None
     task = run.metadata.get('active_task') or {}
