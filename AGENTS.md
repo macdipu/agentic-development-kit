@@ -15,7 +15,7 @@ This file is the canonical repository-level instruction entrypoint for agentic d
 9. Never invent missing business rules.
 10. Never infer human approval.
 11. Route work through the appropriate workflow in `agentic/kit/workflows/`.
-12. Use skills under `agentic/kit/skills/` as reusable specialist workflows.
+12. Use skills under `agentic/kit/skills/` as reusable specialist workflows. For implementation-stage work, pick it up through the matching domain persona under `agentic/kit/agents/` (FE, Mobile, BE, DB/Integration, QA, Security/DevOps — see `agentic/kit/agents/README.md`); a persona composes existing skills and scopes which tasks it takes, it does not replace them.
 13. Record agent start/end timing and relevant task telemetry through the harness.
 14. Preserve traceability from request -> requirements -> design -> tasks -> implementation -> QA -> release.
 

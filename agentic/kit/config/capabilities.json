@@ -15,6 +15,7 @@
     "implementation-agent": "L4",
     "automated-qa-agent": "L5",
     "device-preview-agent": "L5",
+    "web-preview-agent": "L5",
     "release-readiness-agent": "L6",
     "prompt-intake-adapter": "L2",
     "document-intake-adapter": "L2",

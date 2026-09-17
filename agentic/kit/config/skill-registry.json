@@ -122,6 +122,11 @@
       "IMPLEMENTATION",
       "QA"
     ],
+    "web-preview-agent": [
+      "PREVIEW",
+      "IMPLEMENTATION",
+      "QA"
+    ],
     "release-readiness-agent": [
       "RELEASE"
     ]

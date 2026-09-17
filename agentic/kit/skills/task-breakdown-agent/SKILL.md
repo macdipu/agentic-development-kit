@@ -14,7 +14,7 @@ Verified scope, work-level classification, technical spec, dependencies, and exi
 ## Procedure
 
 1. Reuse existing tasks; split new work into bounded units with observable acceptance criteria and clear affected components.
-2. Record task IDs, dependencies, implementation requirements, tests, references, and exclusions using the task template.
+2. Record task IDs, dependencies, implementation requirements, tests, references, and exclusions using the task template, including its `Category` field (`FE`, `Mobile`, `BE`, `DB/Integration`, `QA`, `Security/DevOps`, or `Documentation`) so the matching agent persona in `agentic/kit/agents/` can pick it up.
 3. Sequence dependency chains and identify work that can proceed independently; avoid splitting merely by artifact count or creating redundant hierarchy.
 
 ## Deliverable

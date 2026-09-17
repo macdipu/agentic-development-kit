@@ -209,10 +209,10 @@ Epic / Story Verification
 Task Breakdown Agent
       |
       v
-Development Agents
-   /      |       \
- FE      BE      Test/QA
-   \      |       /
+Development Agents (agentic/kit/agents/)
+  /    |     |          |       |        \
+FE  Mobile  BE  DB/Integration  QA  Security/DevOps
+  \    |     |          |       |        /
       Code Review
           |
           v
@@ -227,6 +227,13 @@ Development Agents
           v
        UAT / Release
 ```
+
+The six Development Agents above are concrete personas under
+`agentic/kit/agents/` (see `agentic/kit/agents/README.md`), not new skills --
+each composes existing skills already listed in `SKILL-CATALOG.md`. FE and
+Mobile are split deliberately: they preview through different skills
+(`web-preview-agent` vs `device-preview-agent`), not duplicated implementation
+logic under two names.
 
 ---
 

@@ -1,5 +1,8 @@
 # Engineering Task
 
+## Category
+<!-- One of: FE, Mobile, BE, DB/Integration, QA, Security/DevOps, Documentation -->
+
 ## Objective
 ## Scope
 ## Dependencies

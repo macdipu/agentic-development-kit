@@ -24,6 +24,12 @@
     "run_check",
     "preview"
   ],
+  "web-preview-agent": [
+    "read",
+    "write_artifact",
+    "run_check",
+    "preview"
+  ],
   "release-readiness-agent": [
     "read",
     "write_artifact"
