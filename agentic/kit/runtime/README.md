@@ -23,6 +23,7 @@ See the [production readiness checklist](production-readiness.md) for what organ
 | Timing | Start/end/failure/cancel/interruption events, duration for normal/failed adapters, retry count; `timing RUN_ID [--task]` queries recorded events and computed durations | Queue, approval-wait, active-vs-tool time attribution are not implemented |
 | Redaction | Best-effort structured field and string masking for context, results, and error/audit payloads | Not comprehensive DLP; tool arguments reach the trusted handler unchanged |
 | Dependency closure | `impact MODULE... --edges edges.json` expands a transitive dependency closure from a caller-supplied module graph | Not connected to automatic dependency discovery; edges must be supplied explicitly |
+| Cross-agent handoff | `pickup`/`close-session` read/write `.agent/HANDOFF.md` + `.agent/sessions/*.md` (agent-handoff compatible, git-tracked), structured by task/completed/changed_files/tests/blockers/decisions/next_action plus the git-configured operator | Separate from this runtime's own store: handoff notes are git-tracked and cross-platform (Claude/Codex/...); the run store stays local and gitignored |
 | Production | No production stage or L7 tool registration | External production integration is intentionally unsupported |
 
 The caller, adapter code, tool registrations, configuration, and database form one local trust boundary. Direct Python, shell, model-provider, or database access outside these APIs bypasses the controls. Use process isolation, authenticated approval services, least-privilege credentials, and durable infrastructure before shared autonomous execution.
@@ -129,11 +130,13 @@ write paths before Bash/Write/Edit/NotebookEdit calls. With no active marker, no
 ad hoc use is unaffected. Unreadable markers, missing state, and internal gate errors
 deny matched calls until the operator diagnoses and recovers the task.
 
-The CLI, tool gate, session hook, and compaction hook share one path definition.
-CLI task markers are reserved exclusively and replaced atomically; finishing another
-run cannot clear the current marker. The session hook reports unknown state explicitly.
-The compaction hook persists checkpoint/audit together and reminds the agent to record
-remaining work. It does not block compaction if recording fails.
+The CLI, tool gate, session hook, compaction hook, and stop hook share one path
+definition. CLI task markers are reserved exclusively and replaced atomically;
+finishing another run cannot clear the current marker. The session hook reports
+unknown state explicitly. The compaction hook persists checkpoint/audit together
+and reminds the agent to record remaining work. It does not block compaction if
+recording fails. The stop hook (below) writes cross-agent handoff notes when a
+governed task is active; it does not block `Stop` either.
 
 Only matched native tools are intercepted. These hooks are cooperative controls,
 not process isolation. Use a supervising terminal for lifecycle CLI commands and
@@ -144,6 +147,61 @@ Run `python3 agentic/kit/runtime/python/agentic_runtime/cli.py doctor` after ado
 or upgrade. It separates installed configuration, isolated hook execution, storage
 checks, unavailable project tools, and platform limitations. Actual agent-platform
 invocation still needs one observed session.
+
+## Cross-agent-platform handoff
+
+Separate from this runtime's own governed-run store, and compatible with
+[ishipu/agent-handoff](https://github.com/ishipu/agent-handoff)'s file format (a
+Python-native port here, not a Node dependency): `.agent/HANDOFF.md` and
+`.agent/sessions/*.md` are plain Markdown, git-tracked, so any agent platform —
+Claude Code, Codex, or another tool that speaks the same convention — can pick up
+where a different one left off after `git pull`, with no server and no shared
+runtime. This is intentionally separate from `agentic/data/runtime/state/`
+(local, gitignored, gate/approval/audit data) — handoff notes carry no
+sensitive governance state, only what the next agent needs to continue.
+
+`init_project.py` scaffolds `.agent/`, `.claude/skills/agent-handoff/SKILL.md`,
+and `.codex/skills/agent-handoff/SKILL.md` on every install, regardless of the
+chosen `--agent`, so a Codex user can join a Claude-installed project (or vice
+versa) without reinstalling.
+
+Before starting work, read the current handoff state:
+
+```sh
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py pickup
+```
+
+Prints `.agent/HANDOFF.md` and the latest `.agent/sessions/*.md` entry. Claude
+Code gets this automatically in the `SessionStart` hook's `additionalContext`;
+`pickup` is for hookless CLIs (including Codex) or manual use.
+
+When finishing a work session, record it:
+
+```sh
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \
+  --agent claude --task "Implement token refresh" \
+  --completed "Added refresh flow" \
+  --changed-files src/auth.ts src/api.ts \
+  --tests "npm test passes" \
+  --blockers "API retry logic missing" \
+  --decisions "Used rotating refresh tokens" \
+  --next-action "Implement retry handling"
+```
+
+`--agent` is exactly `claude` or `codex` (matching upstream's own restriction, so
+these files stay valid input to the real `agent-handoff` CLI too). Structured
+fields, not one free-form summary: `--task`/`--completed` are required; the rest
+are optional but each gets its own heading in the written files, so a picking-up
+agent reads a specific field instead of parsing prose. The git-configured
+operator (`git config user.name`/`user.email`) is captured automatically
+alongside the `claude`/`codex` platform tag, since more than one person can
+drive either platform on a shared project.
+
+This rewrites `.agent/HANDOFF.md` and appends a new
+`.agent/sessions/<timestamp>-<agent>.md`. Claude Code does this automatically via
+the `Stop` hook whenever a governed task is active (never blocks `Stop`, fails
+open on error); on a hookless CLI, run `close-session` yourself before ending
+the session.
 
 ## Permissions and commands
 
