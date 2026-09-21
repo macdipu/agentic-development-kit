@@ -149,10 +149,9 @@ def write_session(repo_root, *, agent: str, ts: Optional[str] = None, **fields) 
     return path
 
 
-def close_session(repo_root, *, agent: str, task: str, completed: str,
+def close_session(repo_root, *, agent: str, task: str, completed: str, status: str,
                    changed_files: Optional[Iterable[str]] = None, tests: str = "",
-                   blockers: str = "", decisions: str = "", next_action: str = "",
-                   status: str = "COMPLETED") -> dict:
+                   blockers: str = "", decisions: str = "", next_action: str = "") -> dict:
     """Mirror upstream's `close-session`: write a session file, then rewrite HANDOFF.md from it."""
     _validate_agent(agent)
     changed_files = list(changed_files or [])

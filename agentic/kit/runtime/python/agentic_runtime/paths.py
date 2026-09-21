@@ -7,3 +7,4 @@ REPO_ROOT = AGENTIC.parent
 STATE_DIR = AGENTIC / 'data/runtime/state'
 RUNS_DIR = STATE_DIR / 'runs'
 ACTIVE_TASK_POINTER = STATE_DIR / 'active-task.json'
+ROUTE_CACHE_FILE = STATE_DIR / 'route-cache.json'

@@ -179,7 +179,7 @@ When finishing a work session, record it:
 
 ```sh
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \
-  --agent claude --task "Implement token refresh" \
+  --agent claude --status BLOCKED --task "Implement token refresh" \
   --completed "Added refresh flow" \
   --changed-files src/auth.ts src/api.ts \
   --tests "npm test passes" \
@@ -189,10 +189,13 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \
 ```
 
 `--agent` is exactly `claude` or `codex` (matching upstream's own restriction, so
-these files stay valid input to the real `agent-handoff` CLI too). Structured
-fields, not one free-form summary: `--task`/`--completed` are required; the rest
-are optional but each gets its own heading in the written files, so a picking-up
-agent reads a specific field instead of parsing prose. The git-configured
+these files stay valid input to the real `agent-handoff` CLI too). `--status` is
+one of `RUNNING`/`BLOCKED`/`COMPLETED`/`CANCELLED` and is required -- there is no
+default, so a hookless close can't silently claim `COMPLETED` for a session that
+didn't finish. Structured fields, not one free-form summary: `--agent`/`--status`/
+`--task`/`--completed` are required; the rest are optional but each gets its own
+heading in the written files, so a picking-up agent reads a specific field instead
+of parsing prose. The git-configured
 operator (`git config user.name`/`user.email`) is captured automatically
 alongside the `claude`/`codex` platform tag, since more than one person can
 drive either platform on a shared project.

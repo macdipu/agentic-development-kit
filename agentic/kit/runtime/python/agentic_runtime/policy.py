@@ -37,3 +37,25 @@ def evaluate(stage, approvals):
     gate = REQUIRED_GATES.get(stage)
     reasons = ["Missing required approval gate: " + gate] if gate and not approvals.get(gate, False) else []
     return PolicyDecision(not reasons, reasons)
+
+
+# A narrow, mechanically-checked exception to REQUIRED_GATES -- technical only,
+# never release/uat. Every condition is read off evidence a skill has already
+# self-reported onto the run; nothing here is inferred (AGENTS.md #10).
+AUTO_APPROVE_GATES = {"technical"}
+
+
+def auto_approve_eligible(gate, results, context_files):
+    """True only when all three already hold on recorded evidence:
+      - work-item-level-classifier classified the item TASK_ONLY
+      - the reviewed scope is exactly one file (no diff exists yet pre-implementation,
+        so file count is the only concrete "how small is this" signal available here)
+      - technical-readiness-verifier's own verdict is TECHNICAL_READY
+    """
+    if gate not in AUTO_APPROVE_GATES:
+        return False
+    if len(context_files or {}) != 1:
+        return False
+    outputs = [r.get("outputs", {}) for r in (results or {}).values() if isinstance(r, dict)]
+    return (any(o.get("classification") == "TASK_ONLY" for o in outputs)
+            and any(o.get("verdict") == "TECHNICAL_READY" for o in outputs))

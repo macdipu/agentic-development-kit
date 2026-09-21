@@ -12,8 +12,9 @@ from agentic_runtime.orchestrator import Orchestrator
 from agentic_runtime.policy import PLANNING, STAGES, WORK_TYPES
 from agentic_runtime.store import RuntimeStore
 from agentic_runtime.tools import NATIVE_TOOL_CAPABILITY, build_default_tools
-from agentic_runtime.paths import KIT, AGENTIC, REPO_ROOT, RUNS_DIR, ACTIVE_TASK_POINTER
+from agentic_runtime.paths import KIT, AGENTIC, REPO_ROOT, RUNS_DIR, ACTIVE_TASK_POINTER, ROUTE_CACHE_FILE
 from agentic_runtime import markers, handoff
+from agentic_runtime.routing_cache import RoutingCache, PROJECT_TYPES, cache_key, compute_kit_version
 from agentic_runtime.timing import now
 
 
@@ -45,6 +46,14 @@ def _cmd_transition(args, store, orch):
 
 
 def _cmd_approve(args, store, orch):
+    if args.auto:
+        if args.by or args.decision != 'APPROVED':
+            raise ValueError('--auto cannot be combined with --by or --decision')
+        if not args.comment.strip():
+            raise ValueError('--auto requires --comment as the auto-approval reason')
+        return orch.auto_approve(args.run_id, args.gate, args.comment)
+    if not args.by:
+        raise ValueError('--by is required unless --auto is set')
     return orch.approve(args.run_id, args.gate, args.by, args.decision, args.comment)
 
 
@@ -152,6 +161,28 @@ def _cmd_cancel(args, store, orch):
     return output
 
 
+def _cmd_route_cache_get(args):
+    cache = RoutingCache(ROUTE_CACHE_FILE)
+    key = cache_key(args.work_type, args.project_type, args.module)
+    version = compute_kit_version(args.repo, KIT)
+    entry = cache.get(key, version)
+    return {'hit': entry is not None, 'key': key, 'kit_version': version, 'entry': entry}
+
+
+def _cmd_route_cache_put(args):
+    cache = RoutingCache(ROUTE_CACHE_FILE)
+    key = cache_key(args.work_type, args.project_type, args.module)
+    version = compute_kit_version(args.repo, KIT)
+    decision = json.loads(args.file.read_text())
+    entry = cache.put(key, version, decision, now())
+    return {'stored': True, 'key': key, 'entry': entry}
+
+
+def _cmd_route_cache_clear(args):
+    RoutingCache(ROUTE_CACHE_FILE).clear()
+    return {'cleared': True}
+
+
 COMMANDS = {
     'init': _cmd_init, 'list': _cmd_list, 'start': _cmd_start, 'show': _cmd_show,
     'eligible': _cmd_eligible, 'transition': _cmd_transition, 'approve': _cmd_approve,
@@ -191,9 +222,14 @@ def main(argv=None):
     approval = sub.add_parser('approve')
     approval.add_argument('run_id')
     approval.add_argument('--gate', choices=['technical', 'release', 'uat'], required=True)
-    approval.add_argument('--by', required=True)
+    approval.add_argument('--by', help='Human approver identity; required unless --auto is set')
     approval.add_argument('--decision', choices=['APPROVED', 'REJECTED'], default='APPROVED')
     approval.add_argument('--comment', default='')
+    approval.add_argument('--auto', action='store_true',
+                           help='Auto-approve via the narrow TASK_ONLY + single-file + TECHNICAL_READY exception '
+                                '(technical gate only; never release/uat). Mutually exclusive with --by/--decision; '
+                                'requires --comment as the reason. Recorded under a distinct synthetic approver so '
+                                'the audit trail can tell it apart from a human approval.')
     context = sub.add_parser('context')
     context.add_argument('run_id')
     context.add_argument('paths', nargs='+', help='Reviewed scope files, relative to --repo from start')
@@ -236,6 +272,19 @@ def main(argv=None):
     guard.add_argument('--input', default='{}', help='JSON native tool input including write paths')
     pickup = sub.add_parser('pickup', help='Print .agent/HANDOFF.md + the latest session record for a hookless CLI/platform')
     pickup.add_argument('--repo', type=Path, default=REPO_ROOT)
+    route_cache_get = sub.add_parser('route-cache-get', help='Look up a cached routing decision; skip re-reading meta-docs in full on a hit')
+    route_cache_get.add_argument('--work-type', choices=sorted(WORK_TYPES), required=True)
+    route_cache_get.add_argument('--project-type', choices=list(PROJECT_TYPES), required=True)
+    route_cache_get.add_argument('--module', required=True)
+    route_cache_get.add_argument('--repo', type=Path, default=REPO_ROOT)
+    route_cache_put = sub.add_parser('route-cache-put', help='Cache a routing decision (route, matched workflow/persona/skill docs) for later sessions to reuse')
+    route_cache_put.add_argument('--work-type', choices=sorted(WORK_TYPES), required=True)
+    route_cache_put.add_argument('--project-type', choices=list(PROJECT_TYPES), required=True)
+    route_cache_put.add_argument('--module', required=True)
+    route_cache_put.add_argument('--repo', type=Path, default=REPO_ROOT)
+    route_cache_put.add_argument('--file', type=Path, required=True, help='JSON decision payload: at least route, workflow_doc, skill_docs')
+    route_cache_clear = sub.add_parser('route-cache-clear', help='Wipe the routing cache, e.g. after a kit upgrade you want to force a fresh read for')
+    route_cache_clear.add_argument('--repo', type=Path, default=REPO_ROOT)
     close_session = sub.add_parser('close-session', help='Write .agent/HANDOFF.md + a session record for cross-agent-platform handoff (agent-handoff compatible)')
     close_session.add_argument('--agent', required=True, choices=sorted(handoff.VALID_AGENTS))
     close_session.add_argument('--task', required=True, help='What this run/session is for')
@@ -245,7 +294,7 @@ def main(argv=None):
     close_session.add_argument('--blockers', default='')
     close_session.add_argument('--decisions', default='', help='Notable decisions made this session')
     close_session.add_argument('--next-action', default='', dest='next_action')
-    close_session.add_argument('--status', default='COMPLETED')
+    close_session.add_argument('--status', choices=['RUNNING', 'BLOCKED', 'COMPLETED', 'CANCELLED'], required=True)
     close_session.add_argument('--repo', type=Path, default=REPO_ROOT)
     args = parser.parse_args(argv)
     try:
@@ -265,6 +314,15 @@ def main(argv=None):
             print(note or 'No .agent/HANDOFF.md yet.')
             if session:
                 print('\n' + session)
+            return 0
+        if args.cmd == 'route-cache-get':
+            print(json.dumps(_cmd_route_cache_get(args), indent=2))
+            return 0
+        if args.cmd == 'route-cache-put':
+            print(json.dumps(_cmd_route_cache_put(args), indent=2))
+            return 0
+        if args.cmd == 'route-cache-clear':
+            print(json.dumps(_cmd_route_cache_clear(args), indent=2))
             return 0
         store = RuntimeStore(str(args.store_dir))
         orch = Orchestrator(store, KIT)

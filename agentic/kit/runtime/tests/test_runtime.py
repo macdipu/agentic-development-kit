@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from support import HarnessCase, ready
 from agentic_runtime.context import snapshot_state
+from agentic_runtime.policy import auto_approve_eligible
 from agentic_runtime.registry import ToolRegistry
 from agentic_runtime.tools import bash_allowed
 
@@ -42,6 +43,67 @@ class RuntimeTests(HarnessCase):
         self.orch.reopen(self.run_id, 'Changed requirement')
         self.assertFalse(self.store.has_approval(self.run_id, 'technical'))
         self.assertEqual(set(self.store.get_run(self.run_id).metadata['results']), {'INTAKE'})
+
+    def test_scoped_context_refresh_avoids_reopen_at_technical_stage(self):
+        self.context('bug')
+        self.orch.transition(self.run_id, 'IMPACT')
+        self.result('agentic-sdlc-orchestrator')
+        self.orch.transition(self.run_id, 'TECHNICAL')
+        self.result('agentic-sdlc-orchestrator')
+        self.orch.approve(self.run_id, 'technical', 'fixture')
+        (self.root / 'scope.md').write_text('Updated fixture scope\n')
+        self.orch.record_context(self.run_id, ['scope.md'])
+        run = self.store.get_run(self.run_id)
+        self.assertNotIn('TECHNICAL', run.metadata['results'])
+        self.assertFalse(self.store.has_approval(self.run_id, 'technical'))
+        self.assertEqual(run.status, 'RUNNING')
+
+    def test_context_refresh_without_precedent_still_requires_reopen(self):
+        self.context('new_feature')
+        self.orch.transition(self.run_id, 'REQUIREMENTS')
+        self.result('agentic-sdlc-orchestrator')
+        (self.root / 'scope.md').write_text('Changed again\n')
+        with self.assertRaisesRegex(ValueError, 'reopen the run'):
+            self.orch.record_context(self.run_id, ['scope.md'])
+
+    def test_auto_approve_accepts_task_only_single_file_technical_ready(self):
+        self.start('existing_task')
+        self.result('prompt-intake-adapter')
+        self.orch.transition(self.run_id, 'CONTEXT')
+        self.orch.record_context(self.run_id, ['scope.md'])
+        self.orch.execute(self.run_id, 'baseline-verifier',
+                           lambda c, t: ready(classification='TASK_ONLY', verdict='TECHNICAL_READY'))
+        self.orch.auto_approve(self.run_id, 'technical', 'single-file task-only fix; verifier says ready')
+        self.assertTrue(self.store.has_approval(self.run_id, 'technical'))
+        approvals = self.store._view(self.run_id)['approvals']
+        self.assertEqual(approvals[-1]['approver'], 'runtime:auto')
+        self.orch.transition(self.run_id, 'IMPLEMENTATION')
+
+    def test_auto_approve_rejects_missing_task_only_classification(self):
+        self.start('existing_task')
+        self.result('prompt-intake-adapter')
+        self.orch.transition(self.run_id, 'CONTEXT')
+        self.orch.record_context(self.run_id, ['scope.md'])
+        self.orch.execute(self.run_id, 'baseline-verifier', lambda c, t: ready(verdict='TECHNICAL_READY'))
+        with self.assertRaisesRegex(ValueError, 'Not eligible for auto-approval'):
+            self.orch.auto_approve(self.run_id, 'technical', 'reason')
+
+    def test_auto_approve_rejects_multi_file_scope(self):
+        (self.root / 'scope2.md').write_text('Second fixture scope\n')
+        self.start('existing_task')
+        self.result('prompt-intake-adapter')
+        self.orch.transition(self.run_id, 'CONTEXT')
+        self.orch.record_context(self.run_id, ['scope.md', 'scope2.md'])
+        self.orch.execute(self.run_id, 'baseline-verifier',
+                           lambda c, t: ready(classification='TASK_ONLY', verdict='TECHNICAL_READY'))
+        with self.assertRaisesRegex(ValueError, 'Not eligible for auto-approval'):
+            self.orch.auto_approve(self.run_id, 'technical', 'reason')
+
+    def test_auto_approve_gate_is_never_applicable_to_release_or_uat(self):
+        evidence = {'QA': {'status': 'READY', 'outputs': {'classification': 'TASK_ONLY', 'verdict': 'TECHNICAL_READY'}},
+                     'UAT': {'status': 'READY', 'outputs': {'classification': 'TASK_ONLY', 'verdict': 'TECHNICAL_READY'}}}
+        self.assertFalse(auto_approve_eligible('release', evidence, {'a': 'hash'}))
+        self.assertFalse(auto_approve_eligible('uat', evidence, {'a': 'hash'}))
 
     def test_permission_matrix_supports_work_without_source_write_escalation(self):
         self.start()

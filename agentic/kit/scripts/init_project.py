@@ -34,15 +34,17 @@ continue from git alone:
 
 ```
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \\
-  --agent {agent} --task "what this run is for" --completed "what you did" \\
+  --agent {agent} --status RUNNING|BLOCKED|COMPLETED|CANCELLED \\
+  --task "what this run is for" --completed "what you did" \\
   --changed-files path/one path/two --tests "npm test passes" \\
   --blockers "..." --decisions "..." --next-action "what to do next"
 ```
 
 `--changed-files`, `--tests`, `--blockers`, and `--decisions` are optional;
-`--agent`, `--task`, and `--completed` are not. Structured fields, not one
-free-form summary, so the next agent can read a specific field instead of
-parsing prose.
+`--agent`, `--status`, `--task`, and `--completed` are not -- `--status` has no
+default, so it can't silently claim `COMPLETED` for a session that didn't
+finish. Structured fields, not one free-form summary, so the next agent can
+read a specific field instead of parsing prose.
 
 This writes `.agent/HANDOFF.md` and a new `.agent/sessions/<timestamp>-{agent}.md`
 record, both git-tracked (unlike this kit's own local run store under
