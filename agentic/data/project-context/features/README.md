@@ -19,6 +19,11 @@ agentic/data/project-context/features/<WORK-ITEM-ID>/
 Templates for each file type live in `agentic/kit/templates/` (`brd.md`, `srs.md`, `architecture.md`,
 `tech-spec.md`, `adr.md`, `task.md`).
 
+Whole-app/whole-project BRD, PRD, SRD live one level up, at
+`agentic/data/project-context/{BRD,PRD,SRD}.md` (see `../README.md`), not in a feature
+folder. A feature's own `BRD.md`/`SRS.md` here should reference that project-wide doc
+rather than restate it.
+
 Rules:
 
 - The original intake document (`FEATURE.md`, `CR.md`, `BUG.md`, `HOTFIX.md`, or `BRD.md`)

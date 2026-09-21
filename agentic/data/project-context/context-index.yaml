@@ -5,6 +5,14 @@ modules:
     status: AVAILABLE
     context_file: agentic/data/project-context/kit-runtime.json
     freshness_strategy: scoped-file-sha256
+# project_docs:              # whole-app/whole-project BRD/PRD/SRD, see project-context/README.md
+#   BRD:
+#     status: READY
+#     path: agentic/data/project-context/BRD.md
+#   PRD:
+#     status: DRAFT
+#     path: agentic/data/project-context/PRD.md
+project_docs: {}
 # features:
 #   FEATURE-042:
 #     status: READY            # DRAFT | READY | TECHNICAL_READY | IN_PROGRESS | DONE
