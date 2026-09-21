@@ -30,8 +30,20 @@ Both modes must normalize into a canonical work item before downstream execution
 
 ## Project types
 
-- Greenfield: use the full feature lifecycle.
-- Brownfield/legacy: use context-first, incremental discovery and baseline recovery only where needed.
+- **Greenfield**: no pre-existing implementation to reconcile against for the work at
+  hand -- a new repo, or a new module/feature area in an existing repo with nothing to
+  discover yet. Context starts at `MISSING`; there is no legacy code, architecture, or
+  data model to recover before building. Use the full feature lifecycle
+  (`agentic/kit/workflows/greenfield.md`).
+- **Brownfield/legacy**: an existing implementation already governs the area being
+  touched -- prior code, tests, data, and architectural constraints exist and must be
+  discovered and reconciled before changing anything. Use context-first, incremental
+  discovery and baseline recovery only where needed (`agentic/kit/workflows/brownfield.md`);
+  do not re-run full discovery on context that is already `AVAILABLE` and fresh.
+
+Classify per work item, not per repo: a brownfield repo can still take a genuinely
+greenfield feature (new module, no existing code to reconcile), and a greenfield repo's
+second feature is brownfield the moment the first one lands.
 
 ## Routing authority
 

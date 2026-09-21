@@ -29,3 +29,5 @@ During implementation or QA, select the same skill when web changes need browser
 ## Domain agent selection
 
 Once `task-breakdown-agent` sets a task's `Category` (`agentic/kit/templates/task.md`), the matching persona in `agentic/kit/agents/` picks it up: `fe-agent`, `mobile-agent`, `be-agent`, `db-integration-agent`, `qa-agent`, or `security-devops-agent` (see `agentic/kit/agents/README.md`). `fe-agent` and `mobile-agent` are split deliberately -- they preview through different skills (`web-preview-agent` vs `device-preview-agent`). This changes nothing about orchestrator mechanics -- eligibility and pins stay keyed by skill name; the persona only narrows which tasks a given execution stays scoped to and which of its composed skills it runs (still selected explicitly via `task-start --skill <name>`, same as any other skill).
+
+`Documentation`-categorized tasks have no matching persona -- route them directly to `implementation-agent`.

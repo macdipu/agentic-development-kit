@@ -24,7 +24,7 @@ def packaged_files():
         rel_parts = path.relative_to(AGENTIC).parts
         if rel_parts[0] == 'data':
             continue
-        if any(part in {'__pycache__', 'state', 'artifacts'} or part.startswith('kit.bak-') for part in rel_parts):
+        if any(part in {'__pycache__', 'state', 'artifacts', '.pytest_cache'} or part.startswith('kit.bak-') for part in rel_parts):
             continue
         files.append(str(path.relative_to(ROOT)))
     return sorted(root_files + files)

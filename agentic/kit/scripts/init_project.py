@@ -96,7 +96,7 @@ def _stage_docs_and_instructions(put, stage, target, source):
 
 
 def _scaffold_project_context(put, target, source, project, project_type):
-    for relative in ['README.md', 'project-context/features/README.md']:
+    for relative in ['README.md', 'project-context/README.md', 'project-context/features/README.md']:
         dest = 'agentic/data/' + relative
         if not (target / dest).exists():
             put(dest, (source / 'data' / relative).read_text())
@@ -106,7 +106,7 @@ def _scaffold_project_context(put, target, source, project, project_type):
             '\ncontext_status: MISSING\nmodules: []\nintegrations: []\n')
     index = 'agentic/data/project-context/context-index.yaml'
     if not (target / index).exists():
-        put(index, 'system:\n  status: MISSING\nmodules: {}\nfeatures: {}\n')
+        put(index, 'system:\n  status: MISSING\nmodules: {}\nproject_docs: {}\nfeatures: {}\n')
 
 
 def _scaffold_handoff(put, target):

@@ -43,3 +43,5 @@ one under two names.
 `DB/Integration`, `QA`, `Security/DevOps`, or `Documentation`), set by
 `task-breakdown-agent`. The matching persona above picks up a task by that
 field; see `../workflows/routing.md` for how this fits the wider routing flow.
+`Documentation` has no dedicated persona -- it is not domain-scoped the way
+FE/BE/QA/etc. are -- so `implementation-agent` picks it up directly.
