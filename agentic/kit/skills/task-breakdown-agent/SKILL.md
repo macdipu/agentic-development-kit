@@ -9,7 +9,10 @@ Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
 ## Inputs
 
-Verified scope, work-level classification, technical spec, dependencies, and existing approved tasks.
+Verified scope, work-level classification, technical spec, dependencies, and existing
+approved tasks. When classification is `EPIC_STORY_TASK` or `STORY_TASK`, also read the
+story file(s) sprint-planner wrote at
+`agentic/data/project-context/features/<work-item-id>/stories/STORY-XXX.md`.
 
 ## Procedure
 
@@ -19,7 +22,7 @@ Verified scope, work-level classification, technical spec, dependencies, and exi
 
 ## Deliverable
 
-Implementation-ready task list, dependency graph, requirement/test coverage, and unresolved ownership or sequencing decisions. Write each task at `agentic/data/project-context/features/<work-item-id>/tasks/TASK-XXX.md` (template: `agentic/kit/templates/task.md`).
+Implementation-ready task list, dependency graph, requirement/test coverage, and unresolved ownership or sequencing decisions. Write each task at `agentic/data/project-context/features/<work-item-id>/tasks/TASK-XXX.md` (template: `agentic/kit/templates/task.md`). When a parent `STORY-XXX` exists, name it in the task's `## References`/scope — task files always stay under `tasks/`, never nested under `stories/`.
 
 ## Readiness boundary
 

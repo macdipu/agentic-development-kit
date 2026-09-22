@@ -56,3 +56,25 @@ Sprint planning determines:
 - UAT target when relevant
 
 The sprint planner proposes the plan. Human planning authority remains with the responsible TL/Lead/PM according to project policy.
+
+## Artifacts per hierarchy level
+
+Only Task ever had a concrete file contract; this closes that gap for Epic/Story so
+sprint-planner's "Epic selection/creation" and "Stories if needed" are not just a
+verdict with nothing on disk:
+
+| Classification | Files written | Template |
+|---|---|---|
+| `EPIC_STORY_TASK` | `features/<id>/EPIC.md` + one `features/<id>/stories/STORY-XXX.md` per story + `features/<id>/tasks/TASK-XXX.md` per task | `templates/epic.md`, `templates/story.md`, `templates/task.md` |
+| `STORY_TASK` | `features/<id>/stories/STORY-XXX.md` (Parent Epic: `NONE`) + `features/<id>/tasks/TASK-XXX.md` | `templates/story.md`, `templates/task.md` |
+| `TASK_ONLY` | `features/<id>/tasks/TASK-XXX.md` only | `templates/task.md` |
+| `EXECUTE_EXISTING_TASK` | none — reuse what already exists | n/a |
+
+sprint-planner writes `EPIC.md`/`STORY-XXX.md`; task-breakdown-agent still writes
+`TASK-XXX.md` regardless of level, referencing its parent `STORY-XXX` id when one
+exists. epic-verifier and sprint-readiness-verifier read these files; they do not
+generate them. A `STORY_TASK`-level item may still record stories informally as table
+rows inside `TASKS.md`/`DELIVERY-PLAN.md` instead of a separate `STORY-XXX.md` file
+when a single short table communicates the same sequencing more usefully — prefer the
+file when a story has its own acceptance criteria, owner, or non-trivial scope worth
+tracking independently.

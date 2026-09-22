@@ -11,9 +11,9 @@ Choose the smallest work hierarchy that preserves delivery clarity, traceability
 
 ## Classifications
 
-- `EPIC_STORY_TASK`: large or multi-flow work containing multiple independently testable outcomes, teams, or substantial dependency chains.
-- `STORY_TASK`: bounded capability with one or a few coherent user/business outcomes.
-- `TASK_ONLY`: small localized implementation or technical change that does not need a user story layer.
+- `EPIC_STORY_TASK`: large or multi-flow work containing multiple independently testable outcomes, teams, or substantial dependency chains. sprint-planner then writes `EPIC.md` + `stories/STORY-XXX.md`; see its skill doc's `## Artifacts`.
+- `STORY_TASK`: bounded capability with one or a few coherent user/business outcomes. sprint-planner writes `stories/STORY-XXX.md` only (no `EPIC.md`).
+- `TASK_ONLY`: small localized implementation or technical change that does not need a user story layer. No epic/story file is written.
 - `EXECUTE_EXISTING_TASK`: an already approved and sufficiently specified task exists; do not recreate planning artifacts.
 
 ## Decision factors

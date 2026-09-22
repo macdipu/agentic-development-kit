@@ -9,7 +9,11 @@ Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
 ## Inputs
 
-Proposed epic/stories/tasks, requirement coverage, dependencies, and selected planning depth.
+Proposed epic/stories/tasks, requirement coverage, dependencies, and selected planning
+depth. Read the artifacts sprint-planner and task-breakdown-agent already wrote:
+`agentic/data/project-context/features/<work-item-id>/EPIC.md`,
+`.../stories/STORY-XXX.md`, and `.../tasks/TASK-XXX.md`. This skill verifies those
+files; it does not generate or replace them.
 
 ## Procedure
 
