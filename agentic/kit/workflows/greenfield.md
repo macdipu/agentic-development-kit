@@ -2,13 +2,8 @@
 
 ```text
 BRD / PRD / Prompt / Feature Doc
- -> Check agentic/data/project-context/{BRD,PRD,SRD,ARCHITECTURE}.md for an existing
-    whole-project doc first (see project-context/README.md). BRD/PRD are human-authored
-    only -- leave absent if missing. SRD/ARCHITECTURE are drafted automatically by
-    srs-generator/technical-architecture-planner when missing, at status: DRAFT, and
-    need human approval (project_docs.*.approved_by/approved_at in context-index.yaml)
-    before any later work treats them as the project baseline -- draft them but do not
-    block this work item on that approval.
+ -> Check agentic/data/project-context/{BRD,PRD,SRD}.md for an existing whole-project
+    doc before generating one; generate only what's missing (see project-context/README.md)
  -> Requirements
  -> SRS/UI as required
  -> Requirement Verification

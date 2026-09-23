@@ -126,6 +126,21 @@ Register trusted tools with `ToolRegistry.register(name, handler, capability='L0
 
 Default limits are two retries after the initial attempt, 900 seconds per adapter attempt, and 50 tool calls per task. Retries are explicit calls, not an automatic loop. Use a managed process supervisor for hard timeouts and process termination. Budget errors, task failures, and tool errors are recorded; secrets are masked on a best-effort basis.
 
+After explicit operator authorization, extend a stopped run's budgets without
+resetting its attempts or changing global policy:
+
+```sh
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py adjust-budget RUN_ID --by actual-operator --reason "Reference to authorization" --max-agent-retries 4 --max-task-seconds 1800
+```
+
+Limits are absolute (four retries means five total attempts per stage/skill).
+At least one limit is required. Active tasks must first finish or be recovered
+after their worker stops. Terminal runs cannot be adjusted. The command records
+old/new limits and the operator/reason in the audit trail; it preserves attempts,
+scope, results, configuration pins and approval gates. This is a trusted-operator
+API, like `approve`, and does not authenticate the supplied identity or authorize
+itself. Agents must not grant themselves extensions without user authorization.
+
 ## Coding-agent integration
 
 Two adapters route real work through the harness instead of only recording a pasted result.

@@ -165,6 +165,52 @@ class RuntimeTests(HarnessCase):
         self.orch.fail_task(self.run_id, task['id'], 'late failure')
         self.assertEqual(self.store.get_run(self.run_id).status, 'CANCELLED')
 
+    def test_budget_adjustment_retains_attempts_and_enforces_new_limits(self):
+        self.start()
+        for _ in range(3):
+            self.result('prompt-intake-adapter')
+        with self.assertRaisesRegex(ValueError, 'Retry budget'):
+            self.result('prompt-intake-adapter')
+        self.orch.adjust_budget(self.run_id, 'fixture-operator', 'Explicit fixture authorization', 3, 1800)
+        task, _ = self.orch.start_task(self.run_id, 'prompt-intake-adapter')
+        run = self.store.get_run(self.run_id)
+        self.assertEqual(run.metadata['attempts']['0:INTAKE:prompt-intake-adapter'], 4)
+        run.metadata['active_task']['started_at'] = (datetime.now(timezone.utc) - timedelta(seconds=1000)).isoformat()
+        self.store.save_run(run)
+        self.orch.finish_task(self.run_id, task['id'], ready())
+        with self.assertRaisesRegex(ValueError, 'Retry budget'):
+            self.result('prompt-intake-adapter')
+        records = self.store._view(self.run_id)
+        self.assertIn('BUDGET_ADJUSTED', json.dumps(records['audit_events']))
+        self.start()
+        self.assertNotIn('budget_overrides', self.store.get_run(self.run_id).metadata)
+
+    def test_budget_adjustment_validation_and_approval_preservation(self):
+        self.implementation()
+        before = self.store.get_run(self.run_id).to_dict()
+        for values in ({}, {'max_task_seconds': 0}, {'max_agent_retries': -1}, {'max_task_seconds': True}):
+            with self.assertRaises(ValueError):
+                self.orch.adjust_budget(self.run_id, 'fixture', 'Authorized', **values)
+        with self.assertRaises(ValueError):
+            self.orch.adjust_budget(self.run_id, '', 'Authorized', max_task_seconds=1800)
+        with self.assertRaises(ValueError):
+            self.orch.adjust_budget(self.run_id, 'fixture', ' ', max_task_seconds=1800)
+        self.assertEqual(before, self.store.get_run(self.run_id).to_dict())
+        self.orch.adjust_budget(self.run_id, 'fixture', 'Authorized', max_task_seconds=1800)
+        self.assertTrue(self.store.has_approval(self.run_id, 'technical'))
+        self.assertFalse(self.store.has_approval(self.run_id, 'release'))
+        task, _ = self.orch.start_task(self.run_id, 'implementation-agent')
+        with self.assertRaisesRegex(ValueError, 'active task'):
+            self.orch.adjust_budget(self.run_id, 'fixture', 'Authorized', max_task_seconds=3600)
+        run = self.store.get_run(self.run_id)
+        run.metadata['active_task']['started_at'] = (datetime.now(timezone.utc) - timedelta(seconds=1801)).isoformat()
+        self.store.save_run(run)
+        with self.assertRaises(TimeoutError):
+            self.orch.finish_task(self.run_id, task['id'], ready())
+        self.orch.cancel(self.run_id)
+        with self.assertRaisesRegex(ValueError, 'terminal'):
+            self.orch.adjust_budget(self.run_id, 'fixture', 'Authorized', max_task_seconds=3600)
+
     def test_recovery_preserves_attempt_and_unknown_tool_outcome(self):
         self.start()
         task, _ = self.orch.start_task(self.run_id, 'prompt-intake-adapter')

@@ -248,6 +248,37 @@ class Orchestrator:
             self._save(run, 'TASK_RECOVERED', {'reason': reason})
         return run
 
+    def adjust_budget(self, run_id, operator, reason, max_agent_retries=None, max_task_seconds=None):
+        """Record an explicitly authorized, run-local budget adjustment.
+
+        Like approve(), this is a trusted-operator API, not authentication.
+        Attempts, task history, scope and approval gates are never reset.
+        """
+        if not operator.strip() or not reason.strip():
+            raise ValueError('Budget adjustment requires an operator and authorization reason')
+        changes = {k: v for k, v in {
+            'max_agent_retries': max_agent_retries, 'max_task_seconds': max_task_seconds,
+        }.items() if v is not None}
+        if not changes:
+            raise ValueError('Specify at least one budget limit')
+        for key, value in changes.items():
+            if type(value) is not int or value < (0 if key == 'max_agent_retries' else 1):
+                raise ValueError('Invalid runtime budget: ' + key)
+        with self.store.transaction():
+            run = self._run(run_id)
+            self._current_config(run)
+            if run.metadata['active_task']:
+                raise ValueError('Finish or recover the active task before adjusting its budget')
+            previous = {k: self._budget(run, k) for k in changes}
+            run.metadata.setdefault('budget_overrides', {}).update(changes)
+            self._save(run, 'BUDGET_ADJUSTED', {
+                'operator': operator, 'reason': reason, 'previous': previous, 'limits': changes,
+            })
+        return run
+
+    def _budget(self, run, key):
+        return run.metadata.get('budget_overrides', {}).get(key, self.policy[key])
+
     def _active(self, run_id, task_id):
         run = self._run(run_id)
         self._current_config(run)
@@ -261,7 +292,7 @@ class Orchestrator:
         if not decision.allowed:
             raise PermissionError('; '.join(decision.reasons))
         elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(task['started_at'])).total_seconds()
-        if elapsed >= self.policy['max_task_seconds']:
+        if elapsed >= self._budget(run, 'max_task_seconds'):
             raise TimeoutError('Task execution budget exhausted')
         return run, task
 
@@ -289,7 +320,7 @@ class Orchestrator:
                 raise ValueError('; '.join(decision.reasons))
             key = f"{run.metadata['scope_revision']}:{run.stage}:{skill}"
             attempts = run.metadata['attempts'].get(key, 0)
-            if attempts > self.policy['max_agent_retries']:
+            if attempts > self._budget(run, 'max_agent_retries'):
                 raise ValueError('Retry budget exhausted')
             run.metadata['attempts'][key] = attempts + 1
             task = {'id': uuid.uuid4().hex, 'skill': skill, 'started_at': now(), 'tool_calls': 0}

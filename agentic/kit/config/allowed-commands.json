@@ -1,7 +1,73 @@
 {
   "commands": [
-    {"argv": ["git", "status", "--short"], "permission": "read"},
-    {"argv": ["git", "diff", "--check"], "permission": "read"},
-    {"argv": ["python3", "-m", "unittest", "discover", "-s", "agentic/kit/runtime/tests"], "permission": "run_check"}
+    {
+      "argv": [
+        "git",
+        "status",
+        "--short"
+      ],
+      "permission": "read"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "permission": "read"
+    },
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "agentic/kit/runtime/tests"
+      ],
+      "permission": "run_check"
+    },
+    {
+      "argv": [
+        "mvn",
+        "-B",
+        "-f",
+        "backend/pom.xml",
+        "verify"
+      ],
+      "permission": "run_check"
+    },
+    {
+      "argv": [
+        "sh",
+        "scripts/verify-platform.sh"
+      ],
+      "permission": "run_check"
+    },
+    {
+      "argv": [
+        "sh",
+        "scripts/verify-flutter.sh"
+      ],
+      "permission": "run_check"
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/check-contracts.py"
+      ],
+      "permission": "run_check"
+    },
+    {
+      "argv": [
+        "docker",
+        "compose",
+        "-f",
+        "infra/docker/compose.yaml",
+        "config",
+        "--quiet"
+      ],
+      "permission": "run_check"
+    }
   ]
 }

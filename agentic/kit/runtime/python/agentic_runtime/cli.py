@@ -74,6 +74,11 @@ def _cmd_reopen(args, store, orch):
     return orch.reopen(args.run_id, args.reason)
 
 
+def _cmd_adjust_budget(args, store, orch):
+    return orch.adjust_budget(args.run_id, args.by, args.reason,
+                              args.max_agent_retries, args.max_task_seconds)
+
+
 def _cmd_recover(args, store, orch):
     output = orch.recover(args.run_id, args.reason)
     markers.clear(ACTIVE_TASK_POINTER, args.store_dir, args.run_id)
@@ -191,6 +196,7 @@ COMMANDS = {
     'task-start': _cmd_task_start, 'call-tool': _cmd_call_tool, 'task-finish': _cmd_task_finish,
     'task-fail': _cmd_task_fail, 'guard': _cmd_guard, 'close-session': _cmd_close_session,
     'impact': _cmd_impact, 'cancel': _cmd_cancel,
+    'adjust-budget': _cmd_adjust_budget,
 }
 
 
@@ -245,6 +251,12 @@ def main(argv=None):
         command.add_argument('run_id')
         command.add_argument('--reason', required=True)
     task_start = sub.add_parser('task-start', help='Begin a governed task for a cross-process adapter (Python or CLI-driven)')
+    budget = sub.add_parser('adjust-budget', help='Record an operator-authorized budget adjustment for one inactive run; preserve history and approvals')
+    budget.add_argument('run_id')
+    budget.add_argument('--by', required=True)
+    budget.add_argument('--reason', required=True)
+    budget.add_argument('--max-agent-retries', type=int)
+    budget.add_argument('--max-task-seconds', type=int)
     task_start.add_argument('run_id')
     task_start.add_argument('--skill', required=True)
     call_tool = sub.add_parser('call-tool', help='Invoke a registered gateway tool for an active task')
