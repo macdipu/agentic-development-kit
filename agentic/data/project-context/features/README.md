@@ -16,8 +16,8 @@ agentic/data/project-context/features/<WORK-ITEM-ID>/
     └── TASK-XXX.md       # from task-breakdown-agent
 ```
 
-Templates for each file type live in `agentic/kit/templates/` (`brd.md`, `srs.md`, `architecture.md`,
-`tech-spec.md`, `adr.md`, `task.md`).
+Templates for each file type live in `agentic/kit/templates/` (`brd.md`, `srs.md`, `feature-hld.md`,
+`feature-lld.md`, `adr.md`, `task.md`).
 
 Whole-app/whole-project BRD, PRD, SRD, ARCHITECTURE live one level up, at
 `agentic/data/project-context/{BRD,PRD,SRD,ARCHITECTURE}.md` (see `../README.md`), not

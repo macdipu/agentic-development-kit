@@ -19,7 +19,7 @@ Requirements, architecture proposal/decisions, current conventions, APIs/data mo
 
 ## Deliverable
 
-Implementation specification (LLD), requirement-to-component mapping, contract/data changes, test plan, and open decisions. It refines the feature HLD in `ARCHITECTURE.md`. Write or update the artifact at `agentic/data/project-context/features/<work-item-id>/TECH-SPEC.md` (template: `agentic/kit/templates/tech-spec.md`).
+Implementation specification (LLD), requirement-to-component mapping, contract/data changes, test plan, and open decisions. It refines the feature HLD in `ARCHITECTURE.md`. Write or update the artifact at `agentic/data/project-context/features/<work-item-id>/TECH-SPEC.md` (template: `agentic/kit/templates/feature-lld.md`).
 
 ## Readiness boundary
 
