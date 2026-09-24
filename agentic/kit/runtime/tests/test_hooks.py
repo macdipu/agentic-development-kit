@@ -60,6 +60,12 @@ class HookTests(HarnessCase):
         self.assertIn('skill_pins', checkpoints[0]['payload'])
         self.assertTrue(all('skill_pins' not in c['payload'] for c in checkpoints[1:]))
         self.assertTrue(any('results' in c['payload'] for c in checkpoints[1:]))
+        state = {}
+        for checkpoint in checkpoints:
+            delta = checkpoint['payload']
+            state = {k: v for k, v in {**state, **delta}.items() if k not in delta.get('_removed', []) and k != '_removed'}
+        self.assertIn('active_task', state)
+        self.assertEqual(state, self.store.ledger(self.run_id)['run']['metadata'] | {'repo': state['repo']})
 
     def test_marker_cannot_be_overwritten_or_cleared_by_another_run(self):
         marker = self.root / '.agent/runtime/active-task.json'

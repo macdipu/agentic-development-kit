@@ -257,7 +257,7 @@ class RuntimeStore:
             raise RuntimeError("save_checkpoint requires a transaction")
         previous = (self._view(run.run_id).get("run") or {}).get("metadata") or {}
         current = self._to_disk(run.metadata)
-        delta = {key: value for key, value in current.items() if previous.get(key) != value}
+        delta = {key: value for key, value in current.items() if key not in previous or previous[key] != value}
         removed = sorted(set(previous) - set(current))
         if removed:
             delta["_removed"] = removed
