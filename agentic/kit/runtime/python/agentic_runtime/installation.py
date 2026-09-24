@@ -33,6 +33,17 @@ def merge_hooks(existing, template):
     return result
 
 
+def install_claude_hooks(repo, template_path):
+    settings = Path(repo) / '.claude/settings.json'
+    current = json.loads(settings.read_text()) if settings.exists() else {}
+    merged = merge_hooks(current, json.loads(Path(template_path).read_text()))
+    changed = merged != current
+    if changed:
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_text(json.dumps(merged, indent=2) + '\n')
+    return {'settings': str(settings), 'changed': changed}
+
+
 def unfinished_runs(root):
     runs_dir = Path(root) / 'agentic/data/runtime/state/runs'
     if not runs_dir.is_dir():

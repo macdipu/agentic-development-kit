@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from support import KIT
 from agentic_runtime.doctor import diagnose, probe_hooks
-from agentic_runtime.installation import managed_text
+from agentic_runtime.installation import install_claude_hooks, managed_text
 
 spec = importlib.util.spec_from_file_location('kit_installer', KIT / 'scripts/init_project.py')
 installer = importlib.util.module_from_spec(spec)
@@ -86,6 +86,20 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual((self.host / 'AGENTS.md').read_text(), 'original')
         self.assertFalse((self.host / 'agentic/kit').exists())
         self.assertTrue(self.install()['ok'])
+
+    def test_install_hooks_merges_into_existing_settings(self):
+        template = KIT / 'config/hooks.json'
+        (self.host / '.claude').mkdir()
+        custom = {'permissions': {'deny': ['Bash(rm:*)']}, 'hooks': {'SessionStart': [{'hooks': [{'type': 'command', 'command': 'host-hook'}]}]}}
+        (self.host / '.claude/settings.json').write_text(json.dumps(custom))
+        self.assertTrue(install_claude_hooks(self.host, template)['changed'])
+        settings = json.loads((self.host / '.claude/settings.json').read_text())
+        self.assertEqual(settings['permissions'], custom['permissions'])
+        self.assertIn(custom['hooks']['SessionStart'][0], settings['hooks']['SessionStart'])
+        for event, entries in json.loads(template.read_text())['hooks'].items():
+            for entry in entries:
+                self.assertIn(entry, settings['hooks'][event])
+        self.assertFalse(install_claude_hooks(self.host, template)['changed'])
 
     def test_doctor_detects_disabled_or_wrong_hooks(self):
         self.install(mode='local-harness', agent='claude')

@@ -156,7 +156,11 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py task-finish RUN_ID TAS
 `call-tool` uses the default tools above (`read_file`, `list_directory`, `search_text`, `write_file`, `run_command`), bound to the run's registered repo root and the allowlist in `config/allowed-commands.json`. An error before `task-finish` should be reported with `task-fail RUN_ID TASK_ID --error "..."` rather than left active; recover the marker only after confirming the worker actually stopped.
 
 **Claude Code integration:** installing with `--mode local-harness --agent claude`
-merges the packaged hooks into host settings. The tool hook checks the active task,
+merges the packaged hooks into host settings. To wire them without a full install
+(for example, in the kit repo itself), run `cli.py install-hooks [--repo PATH]`: it
+merges `config/hooks.json` into `.claude/settings.json`, preserving existing settings
+and hooks, and is a no-op when already present; then run `doctor` and restart the
+Claude session. The tool hook checks the active task,
 pins, approvals, timeout, permissions, complete command arguments, and document/code
 write paths before Bash/Write/Edit/NotebookEdit calls. With no active marker, normal
 ad hoc use is unaffected. Unreadable markers, missing state, and internal gate errors

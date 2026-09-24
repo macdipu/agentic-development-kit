@@ -208,6 +208,8 @@ def main(argv=None):
     sub.add_parser('list')
     doctor = sub.add_parser('doctor', help='Check installed modes, tools, storage, and hooks')
     doctor.add_argument('--repo', type=Path, default=AGENTIC.parent)
+    install_hooks = sub.add_parser('install-hooks', help='Merge the kit hooks into .claude/settings.json; existing settings and hooks are preserved')
+    install_hooks.add_argument('--repo', type=Path, default=REPO_ROOT)
     production = sub.add_parser('production-check', help='Validate bound readiness evidence; does not authorize or deploy')
     production.add_argument('--file', type=Path, required=True)
     repair = sub.add_parser('repair-marker', help='Clear a damaged marker after database recovery and worker shutdown')
@@ -320,6 +322,10 @@ def main(argv=None):
             report = diagnose(args.repo)
             print(json.dumps(report, indent=2))
             return 0 if report['ok'] else 1
+        if args.cmd == 'install-hooks':
+            from agentic_runtime.installation import install_claude_hooks
+            print(json.dumps(install_claude_hooks(args.repo, KIT / 'config/hooks.json'), indent=2))
+            return 0
         if args.cmd == 'pickup':
             note = handoff.read_handoff(args.repo)
             session = handoff.read_latest_session(args.repo)

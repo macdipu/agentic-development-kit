@@ -8,6 +8,9 @@ Preserve traceability from the request through requirements, implementation, QA,
 and release evidence. Generated artifacts and host work items belong under
 `agentic/data/`; reusable skills, templates, and runtime belong under `agentic/kit/`.
 Never infer missing business rules or human approval.
+Once the user gives explicit approval (for example, in chat), the agent may
+record it with the runtime `approve --by <user>` or `adjust-budget --by <user>`
+commands, citing where approval was given; never run them without it.
 
 Instruction mode guides agent behavior. In local-harness mode, use the runtime
 task protocol and verify installation with its `doctor` command. Before starting
