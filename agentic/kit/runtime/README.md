@@ -23,7 +23,7 @@ See the [production readiness checklist](production-readiness.md) for what organ
 | Timing | Start/end/failure/cancel/interruption events, duration for normal/failed adapters, retry count; `timing RUN_ID [--task]` queries recorded events and computed durations | Queue, approval-wait, active-vs-tool time attribution are not implemented |
 | Redaction | Best-effort structured field and string masking for context, results, and error/audit payloads | Not comprehensive DLP; tool arguments reach the trusted handler unchanged |
 | Dependency closure | `impact MODULE... --edges edges.json` expands a transitive dependency closure from a caller-supplied module graph | Not connected to automatic dependency discovery; edges must be supplied explicitly |
-| Cross-agent handoff | `pickup`/`close-session` read/write `.agent/HANDOFF.md` + `.agent/sessions/*.md` (agent-handoff compatible, git-tracked), structured by task/completed/changed_files/tests/blockers/decisions/next_action plus the git-configured operator and a git-derived commit log | Separate from this runtime's own store: handoff notes are git-tracked and cross-platform (Claude/Codex/...); the run store stays local and gitignored |
+| Cross-agent handoff | `pickup`/`close-session` read/write `.agent/HANDOFF.md` + `.agent/sessions/*.md` (agent-handoff compatible, git-tracked), structured by task/completed/changed_files/tests/blockers/decisions/next_action plus the git-configured operator and a git-derived commit log | Handoff notes, session records (with a full `## Runtime` section) and the run store all live under `.agent/`, git-tracked, so another machine or platform resumes after `git pull` |
 | Commits | `commit-message` builds a Conventional Commits message with `Work-Item`/`Task`/`Run`/`Commit-Trigger` trailers; `record-commit RUN_ID` appends a `COMMIT_RECORDED` audit event | Does not run `git commit` or decide when to commit; see [commit policy](../policies/commit-policy.md) |
 | Production | No production stage or L7 tool registration | External production integration is intentionally unsupported |
 
@@ -65,7 +65,7 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py impact auth billing --
 
 `edges.json` maps a module name to the list of modules that depend on it (e.g. `{"auth": ["billing"], "billing": ["invoicing"]}`); `impact` walks that graph from the given modules and returns the full affected set. The runtime does not discover these edges itself — supply them from `module-context.yaml`'s `dependencies` field or another source of truth.
 
-Default state lives under `agentic/data/runtime/state/runs/`. Put `--store-dir /path/to/runs` before the subcommand to select another store directory. Invalid input and denied transitions return a nonzero exit code and leave the previous stage intact. `BLOCKED` results can be retried within budget; unknown stage strings are rejected.
+Default state lives under `.agent/runtime/runs/` (git-tracked; paths inside are stored relative so the store resolves on any checkout). Put `--store-dir /path/to/runs` before the subcommand to select another store directory. Invalid input and denied transitions return a nonzero exit code and leave the previous stage intact. `BLOCKED` results can be retried within budget; unknown stage strings are rejected.
 
 ## Routes and gates
 
@@ -193,9 +193,16 @@ Python-native port here, not a Node dependency): `.agent/HANDOFF.md` and
 `.agent/sessions/*.md` are plain Markdown, git-tracked, so any agent platform —
 Claude Code, Codex, or another tool that speaks the same convention — can pick up
 where a different one left off after `git pull`, with no server and no shared
-runtime. This is intentionally separate from `agentic/data/runtime/state/`
-(local, gitignored, gate/approval/audit data) — handoff notes carry no
-sensitive governance state, only what the next agent needs to continue.
+runtime. The governed-run ledger sits beside them in `.agent/runtime/`
+(active-task pointer, `runs/*.json`, route cache), also git-tracked, and each
+session record carries a `## Runtime` section rendering that run's full ledger
+(stages and results, every approval with its comment, timing per skill,
+attempts, budget overrides, context hashes, skill pins, checkpoints, every audit
+event with its redacted payload, tool calls). The pointer stores its store
+directory relative to itself and each run stores `metadata.repo` relative to
+the store, so `git pull` on another machine resumes the same run. Only
+`*.lock`, `*.tmp`, and `logs/` are gitignored. Git provides no cross-machine
+lock: finish and push on one machine before resuming on another.
 
 `init_project.py` scaffolds `.agent/`, `.claude/skills/agent-handoff/SKILL.md`,
 and `.codex/skills/agent-handoff/SKILL.md` on every install, regardless of the
@@ -266,8 +273,8 @@ one without a valid `Commit-Trigger` trailer. Neither command commits or pushes.
 ## Routing-decision cache
 
 Separate from `agentic/data/project-context/` (discovered facts about the target
-codebase) and from the governed-run store: a small local, gitignored cache
-(`agentic/data/runtime/state/route-cache.json`) that lets a session skip
+codebase) and from the governed-run store: a small git-tracked cache
+(`.agent/runtime/route-cache.json`) that lets a session skip
 re-reading `AGENTS.md`'s matched `workflows/*.md`, a persona `AGENT.md`, and
 `SKILL.md` files in full for a (work type, project type, module) triple it has
 already routed before.

@@ -22,9 +22,10 @@ Rules for both:
 - Stage paths explicitly (`git add <paths>`); never `git add -A`/`.` blindly.
   Leave unrelated working-tree changes, and other agents' uncommitted changes,
   untouched.
-- Never stage secrets, `.env*`, or the local run store
-  (`agentic/data/runtime/state/`). `.agent/HANDOFF.md` and `.agent/sessions/*.md`
-  may be committed.
+- Never stage secrets, `.env*`, or runtime lock/temp files and logs
+  (`.agent/runtime/**/*.lock`, `*.tmp`, `logs/` — gitignored). `.agent/HANDOFF.md`,
+  `.agent/sessions/*.md`, and the run ledger under `.agent/runtime/` may be
+  committed; approval comments and redacted audit payloads land in git with them.
 - Never push, force-push, amend a pushed commit, rebase shared history, or skip
   hooks (`--no-verify`) without an explicit user ask. Committing does not imply
   pushing.

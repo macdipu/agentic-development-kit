@@ -20,9 +20,11 @@ def load_active_task(pointer_path):
     if not pointer_path.exists():
         return None, None, None
     pointer = json.loads(pointer_path.read_text())
-    if not Path(pointer['store_dir']).is_dir():
+    from .markers import store_dir_of
+    store_dir = store_dir_of(pointer_path, pointer)
+    if not store_dir.is_dir():
         raise ValueError('Active-task store is missing')
     from .store import RuntimeStore
-    store = RuntimeStore(pointer['store_dir'])
+    store = RuntimeStore(str(store_dir))
     run = store.get_run(pointer['run_id'])
     return pointer, store, run

@@ -3,12 +3,13 @@
 
 Wired via .claude/settings.json (event Stop, matcher "*" -- fires whenever Claude
 finishes responding). Only acts when a governed task is active
-(agentic/data/runtime/state/active-task.json), same convention as
+(.agent/runtime/active-task.json), same convention as
 pretooluse_gate.py/precompact_checkpoint.py -- a session with no governed work
 in flight leaves `.agent/` untouched, so casual turns don't spam it with files.
 
 When a task is active, writes `.agent/HANDOFF.md` + a new `.agent/sessions/*.md`
-entry (git-tracked, format compatible with github.com/ishipu/agent-handoff) so a
+entry (git-tracked, format compatible with github.com/ishipu/agent-handoff), with a
+Runtime section summarizing the run's ledger, so a
 different agent platform (or a different machine, after `git pull`) can pick up
 this run's state. Never blocks Stop: any error is reported, not enforced.
 """
@@ -28,7 +29,7 @@ def _emit(message):
 def _close_active_run():
     from agentic_runtime.hooks_support import load_active_task
     from agentic_runtime import handoff
-    _pointer, _store, run = load_active_task(ACTIVE_TASK_POINTER)
+    _pointer, store, run = load_active_task(ACTIVE_TASK_POINTER)
     if run is None:
         return None
     task = run.metadata.get('active_task') or {}
@@ -43,7 +44,7 @@ def _close_active_run():
         completed=f"Reached stage {run.stage} (status {run.status}).",
         changed_files=changed_files,
         blockers='Task was still active when Claude stopped.' if task else '',
-        next_action=next_action,
+        next_action=next_action, store=store, run_id=run.run_id,
     )
     return f"Wrote handoff notes for run {run.run_id} ({result['handoff']})."
 

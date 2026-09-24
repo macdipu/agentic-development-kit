@@ -2,6 +2,7 @@
 import copy
 import json
 from pathlib import Path
+from .paths import RUNS_DIR_REL
 
 BEGIN = '<!-- agentic-kit:start -->'
 END = '<!-- agentic-kit:end -->'
@@ -44,8 +45,8 @@ def install_claude_hooks(repo, template_path):
     return {'settings': str(settings), 'changed': changed}
 
 
-def unfinished_runs(root):
-    runs_dir = Path(root) / 'agentic/data/runtime/state/runs'
+def unfinished_runs(root, runs_dir_rel=RUNS_DIR_REL):
+    runs_dir = Path(root) / runs_dir_rel
     if not runs_dir.is_dir():
         return []
     unfinished = []

@@ -11,10 +11,12 @@ LOCK_TIMEOUT_SECONDS = 10.0
 class RuntimeStore:
     """Governed run state as one JSON file per run under `store_dir`.
 
-    Local-only, gitignored: each run's runs/checkpoints/approvals/timing/audit/
+    Git-tracked (under .agent/runtime/runs/): each run's runs/checkpoints/approvals/timing/audit/
     tool-call records live in `<store_dir>/<run_id>.json`, written atomically via
     write-temp+os.replace. An exclusive-create lock file guards concurrent
-    writers on one machine; it does not coordinate across machines/clones.
+    writers on one machine; it does not coordinate across machines/clones -- finish
+    and push on one machine before resuming on another. Lock/temp files stay
+    gitignored.
 
     No in-memory cache: every non-transactional call (`get_run`, `has_approval`,
     `query_timing`) re-reads and re-parses its run's file from disk. Fine at this
@@ -53,6 +55,20 @@ class RuntimeStore:
             self._lock_path(run_id).unlink()
         except FileNotFoundError:
             pass
+
+    # On disk `metadata.repo` is relative to store_dir, so a store committed to git
+    # resolves to the right checkout on any machine; in memory it is absolute.
+    def _to_disk(self, metadata: dict) -> dict:
+        repo = metadata.get("repo")
+        if not repo or not Path(repo).is_absolute():
+            return metadata
+        return {**metadata, "repo": os.path.relpath(Path(repo).resolve(), self.store_dir.resolve())}
+
+    def _from_disk(self, metadata: dict) -> dict:
+        repo = metadata.get("repo")
+        if not repo or Path(repo).is_absolute():
+            return metadata
+        return {**metadata, "repo": str((self.store_dir / repo).resolve())}
 
     def _empty(self) -> dict:
         return {"run": None, "checkpoints": [], "approvals": [], "timing_events": [], "audit_events": [], "tool_calls": {}}
@@ -98,14 +114,14 @@ class RuntimeStore:
             if existing:
                 existing.update({
                     "stage": run.stage, "status": run.status, "dry_run": run.dry_run,
-                    "updated_at": run.updated_at, "metadata": run.metadata,
+                    "updated_at": run.updated_at, "metadata": self._to_disk(run.metadata),
                 })
             else:
                 data["run"] = {
                     "run_id": run.run_id, "project": run.project, "work_type": run.work_type,
                     "title": run.title, "stage": run.stage, "status": run.status,
                     "dry_run": run.dry_run, "created_at": run.created_at,
-                    "updated_at": run.updated_at, "metadata": run.metadata,
+                    "updated_at": run.updated_at, "metadata": self._to_disk(run.metadata),
                 }
         self._mutate(run.run_id, _fn)
 
@@ -115,7 +131,14 @@ class RuntimeStore:
             return None
         return WorkflowRun(run_id=r['run_id'], project=r['project'], work_type=r['work_type'], title=r['title'],
                            stage=r['stage'], status=r['status'], dry_run=bool(r['dry_run']),
-                           created_at=r['created_at'], updated_at=r['updated_at'], metadata=r['metadata'])
+                           created_at=r['created_at'], updated_at=r['updated_at'], metadata=self._from_disk(r['metadata']))
+
+    def ledger(self, run_id: str) -> dict:
+        """The run's full record: run, checkpoints, approvals, timing/audit events, tool calls."""
+        data = self._view(run_id)
+        if data.get("run"):
+            data = {**data, "run": {**data["run"], "metadata": self._from_disk(data["run"]["metadata"])}}
+        return data
 
     def list_runs(self) -> List[Dict]:
         results = []
@@ -126,7 +149,7 @@ class RuntimeStore:
                 continue
             r = data.get("run")
             if r:
-                results.append(dict(r))
+                results.append({**r, "metadata": self._from_disk(r["metadata"])})
         results.sort(key=lambda r: r["created_at"], reverse=True)
         return results
 
@@ -134,7 +157,9 @@ class RuntimeStore:
 
     def checkpoint(self, run_id, stage, status, payload, ts):
         def _fn(data):
-            data["checkpoints"].append({"run_id": run_id, "stage": stage, "status": status, "payload": payload, "created_at": ts})
+            data["checkpoints"].append({"run_id": run_id, "stage": stage, "status": status,
+                                        "payload": self._to_disk(payload) if isinstance(payload, dict) else payload,
+                                        "created_at": ts})
         self._mutate(run_id, _fn)
 
     def approval(self, run_id, gate, approver, decision, comment, ts, scope_revision=-1):

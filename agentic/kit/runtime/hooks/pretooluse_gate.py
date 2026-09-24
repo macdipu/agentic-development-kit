@@ -2,7 +2,7 @@
 """Claude Code PreToolUse hook: gate native tool calls against an active governed run.
 
 Wired via .claude/settings.json (matcher "Bash|Write|Edit|NotebookEdit"). When no
-governed task is active (agentic/data/runtime/state/active-task.json is absent), every
+governed task is active (.agent/runtime/active-task.json is absent), every
 call is allowed untouched. While a marker is present, unreadable state and internal
 gate failures deny matched tools until an operator diagnoses and recovers the task.
 """

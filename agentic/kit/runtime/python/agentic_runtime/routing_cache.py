@@ -7,7 +7,7 @@ in a prior session -- none of that content changes per-run. This cache lets a
 session skip that re-read on a hit and reuse the previously recorded routing
 decision (route, matched docs) instead.
 
-Local-only, gitignored, one JSON file (agentic/data/runtime/state/route-cache.json),
+Git-tracked with the rest of the runtime, one JSON file (.agent/runtime/route-cache.json),
 written atomically (temp + os.replace) under a single exclusive-create lock --
 same convention as RuntimeStore, just one file instead of one per run.
 

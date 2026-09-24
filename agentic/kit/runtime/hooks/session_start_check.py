@@ -4,10 +4,10 @@
 Wired via .claude/settings.json (event SessionStart, no matcher -- runs on
 startup/resume/clear alike). Order of checks:
 
-1. agentic/data/runtime/state/active-task.json present -> a task-start was never
+1. .agent/runtime/active-task.json present -> a task-start was never
    closed by task-finish/task-fail/cancel/recover. Report it as midflight.
 2. No active-task pointer, but the default run store
-   (agentic/data/runtime/state/runs/) has a run whose status is RUNNING or
+   (.agent/runtime/runs/) has a run whose status is RUNNING or
    BLOCKED -> report the most recently updated one as midflight.
 3. Otherwise -> nothing in flight, clear to start the next work item.
 

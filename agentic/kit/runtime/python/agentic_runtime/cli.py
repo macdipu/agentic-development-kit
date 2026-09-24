@@ -94,7 +94,7 @@ def _cmd_repair_marker(args, store, orch):
             pointer = json.loads(ACTIVE_TASK_POINTER.read_text())
         except ValueError:
             pointer = {}
-        if isinstance(pointer, dict) and pointer.get('store_dir') and Path(pointer['store_dir']).resolve() != args.store_dir.resolve():
+        if isinstance(pointer, dict) and pointer.get('store_dir') and markers.store_dir_of(ACTIVE_TASK_POINTER, pointer) != args.store_dir.resolve():
             raise ValueError('Marker belongs to a different store; select it explicitly with --store-dir')
         backup = ACTIVE_TASK_POINTER.with_name('active-task.recovered-' + uuid.uuid4().hex + '.json')
         ACTIVE_TASK_POINTER.rename(backup)
@@ -142,11 +142,14 @@ def _cmd_guard(args, store, orch):
 
 
 def _cmd_close_session(args, store, orch):
+    run_id = args.run
+    if run_id is None and ACTIVE_TASK_POINTER.exists():
+        run_id = json.loads(ACTIVE_TASK_POINTER.read_text()).get('run_id')
     return handoff.close_session(args.repo, agent=args.agent, status=args.status,
                                   task=args.task, completed=args.completed,
                                   changed_files=args.changed_files, tests=args.tests,
                                   blockers=args.blockers, decisions=args.decisions,
-                                  next_action=args.next_action)
+                                  next_action=args.next_action, store=store, run_id=run_id)
 
 
 def _cmd_record_commit(args, store, orch):
@@ -320,6 +323,7 @@ def main(argv=None):
     close_session.add_argument('--decisions', default='', help='Notable decisions made this session')
     close_session.add_argument('--next-action', default='', dest='next_action')
     close_session.add_argument('--status', choices=['RUNNING', 'BLOCKED', 'COMPLETED', 'CANCELLED'], required=True)
+    close_session.add_argument('--run', default=None, help='Run to summarize in the Runtime section (default: the active task\'s run)')
     close_session.add_argument('--repo', type=Path, default=REPO_ROOT)
     commit_message = sub.add_parser('commit-message', help='Print a policy-conformant commit message (Conventional Commits + traceability trailers)')
     commit_message.add_argument('--type', choices=commits.COMMIT_TYPES, required=True)

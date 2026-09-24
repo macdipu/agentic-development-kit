@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from .paths import RUNS_DIR_REL
 
 
 def detect_project(root):
@@ -77,7 +78,7 @@ def probe_hooks(kit):
         copy = root / 'agentic/kit'
         for name in ('runtime', 'config', 'skills'):
             shutil.copytree(kit / name, copy / name, ignore=shutil.ignore_patterns('__pycache__'))
-        runs_dir = root / 'agentic/data/runtime/state/runs'
+        runs_dir = root / RUNS_DIR_REL
         store = RuntimeStore(str(runs_dir))
         orch = Orchestrator(store, copy)
         run = orch.start('doctor-fixture', 'discovery', 'Check hook enforcement', repo=root)
@@ -132,7 +133,7 @@ def diagnose(root):
             require(any(store.store_dir.glob('*.json')), 'Storage commit failed')
     check('configuration and storage execution', config)
     if mode == 'local-harness':
-        runs_dir = root / 'agentic/data/runtime/state/runs'
+        runs_dir = root / RUNS_DIR_REL
         def database():
             require(runs_dir.is_dir(), 'Runtime store not initialized')
             for path in runs_dir.glob('*.json'):
@@ -158,7 +159,8 @@ def diagnose(root):
         if marker.exists():
             def active_state():
                 pointer = json.loads(marker.read_text())
-                pointer_dir = Path(pointer['store_dir']).resolve()
+                from .markers import store_dir_of
+                pointer_dir = store_dir_of(marker, pointer)
                 run_file = pointer_dir / f"{pointer['run_id']}.json"
                 data = json.loads(run_file.read_text()) if run_file.is_file() else None
                 active = (data or {}).get('run', {}).get('metadata', {}).get('active_task') if data else None

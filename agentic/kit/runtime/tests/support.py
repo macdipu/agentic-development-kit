@@ -27,7 +27,7 @@ class HarnessCase(unittest.TestCase):
         for name in ('config', 'skills', 'runtime'):
             shutil.copytree(KIT / name, self.kit / name, ignore=shutil.ignore_patterns('__pycache__', 'tests'))
         (self.root / 'scope.md').write_text('Fixture scope\n')
-        self.store = RuntimeStore(str(self.root / 'agentic/data/runtime/state/runs'))
+        self.store = RuntimeStore(str(self.root / '.agent/runtime/runs'))
         self.tools = build_default_tools(self.root, [{'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], 'permission': 'run_check'}])
         self.orch = Orchestrator(self.store, self.kit, self.tools)
 
