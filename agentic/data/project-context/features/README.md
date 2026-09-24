@@ -8,8 +8,8 @@ agentic/data/project-context/features/<WORK-ITEM-ID>/
 ├── context.yaml          # optional, module-context.yaml-shaped snapshot for this feature
 ├── BRD.md                # copy or reference of the originating BRD/FEATURE/CR doc (optional)
 ├── SRS.md                # from srs-generator
-├── ARCHITECTURE.md       # from technical-architecture-planner
-├── TECH-SPEC.md          # from technical-spec-generator
+├── ARCHITECTURE.md       # feature HLD, from technical-architecture-planner
+├── TECH-SPEC.md          # feature LLD, from technical-spec-generator
 ├── adr/
 │   └── ADR-XXX-title.md  # from adr-generator, only for significant decisions
 └── tasks/

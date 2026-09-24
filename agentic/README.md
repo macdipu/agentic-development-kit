@@ -81,7 +81,9 @@ CLIENT / BUSINESS INPUT
 | - Requirement List           |
 | - ADR when required          |
 | - Technical Specification    |
-| - LLD / Coding Convention    |
+| - HLD (ARCHITECTURE.md)      |
+| - LLD (TECH-SPEC.md)         |
+| - Coding Convention          |
 | - Client-facing docs         |
 | - System Design              |
 | - Technical Review           |

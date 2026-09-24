@@ -8,7 +8,7 @@ agentic/data/project-context/
 ├── BRD.md                # whole-app/whole-project BRD, optional, human-authored only
 ├── PRD.md                # whole-app/whole-project PRD, optional, human-authored only
 ├── SRD.md                # whole-app/whole-project SRD/SRS, generated + human-approved
-├── ARCHITECTURE.md       # whole-app/whole-project architecture, generated + human-approved
+├── ARCHITECTURE.md       # project-level HLD, generated + human-approved (template: hld.md)
 └── features/<WORK-ITEM-ID>/   # per-feature/CR/bug artifacts, see features/README.md
 ```
 
@@ -21,7 +21,19 @@ agentic/data/project-context/
   `features/<WORK-ITEM-ID>/` scope those same concerns to that work item, and should
   reference the project-wide doc (via `## References`) rather than restate it.
 - Templates: `agentic/kit/templates/brd.md`, `srs.md` (used for both PRD- and SRD-shaped
-  content; the kit does not distinguish a separate PRD template), `architecture.md`.
+  content; the kit does not distinguish a separate PRD template), `hld.md` (root
+  `ARCHITECTURE.md`, project-level HLD), `architecture.md` (feature `ARCHITECTURE.md`,
+  feature-scoped HLD), `tech-spec.md` (feature `TECH-SPEC.md`, LLD).
+
+### HLD / LLD aliases
+
+| Doc | Alias | Scope | Template |
+| --- | --- | --- | --- |
+| `ARCHITECTURE.md` (root) | HLD | whole project | `hld.md` |
+| `features/<ID>/ARCHITECTURE.md` | HLD | one work item | `architecture.md` |
+| `features/<ID>/TECH-SPEC.md` | LLD | one work item | `tech-spec.md` |
+
+Filenames stay as-is; "HLD"/"LLD" are aliases, not separate files.
 
 ### BRD.md / PRD.md — human-authored only
 
@@ -39,7 +51,8 @@ counterparts are, so they get generated automatically instead of staying absent:
   verified requirements, at `status: DRAFT`.
 - When a work item reaches TECHNICAL stage and root `ARCHITECTURE.md` does not exist
   yet, `technical-architecture-planner` drafts it (in addition to the feature's own
-  `ARCHITECTURE.md`) from the same verified design, at `status: DRAFT`.
+  `ARCHITECTURE.md`) from the same verified design, at `status: DRAFT`, using the
+  project-level HLD template `hld.md`.
 - A drafted root doc is not a baseline. Per AGENTS.md #10 ("never infer human
   approval"), no skill may mark its own draft `APPROVED` or treat it as authoritative.
   Downstream work may reference it as a proposal, but the feature must not be blocked

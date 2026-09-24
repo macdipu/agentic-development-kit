@@ -29,9 +29,9 @@
 - `sprint-readiness-verifier` - Verify whether software work is ready to be committed to a sprint or should remain in backlog, be expedited, or require more preparation. Use for features, change requests, bugs, hotfixes, and technical changes after technical readiness and planning-level classification when sprint commitment is being considered.
 - `srs-generator` - Create a traceable software requirements specification from approved requirements and constraints.
 - `task-breakdown-agent` - Break verified work into implementation-ready FE, BE, DB, integration, QA, DevOps, security, and documentation tasks.
-- `technical-architecture-planner` - Design or update architecture from verified requirements and current project context while preferring existing project patterns.
+- `technical-architecture-planner` - Design or update architecture (HLD) from verified requirements and current project context while preferring existing project patterns.
 - `technical-readiness-verifier` - Determine whether work is technically ready, conditionally ready, or blocked.
-- `technical-spec-generator` - Produce implementation-ready technical specification, LLD, API contracts, database impact, security, error handling, observability, dependencies, and test strategy.
+- `technical-spec-generator` - Produce implementation-ready technical specification (LLD), API contracts, database impact, security, error handling, observability, dependencies, and test strategy.
 - `test-baseline-agent` - Map current behavior/modules to test evidence and identify coverage gaps, flaky/broken tests, and regression risk.
 - `user-flow-discovery-agent` - Recover screens, navigation, forms, validations, state transitions, permissions, and user flows from frontend/mobile evidence.
 - `work-item-level-classifier` - Classify incoming or analyzed software work into the minimum useful planning hierarchy: EPIC_STORY_TASK, STORY_TASK, TASK_ONLY, or EXECUTE_EXISTING_TASK. Use after requirements or change impact are understood and before sprint handling or task decomposition, for features, change requests, bugs, hotfixes, and technical changes.

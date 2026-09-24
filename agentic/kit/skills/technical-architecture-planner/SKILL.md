@@ -1,6 +1,6 @@
 ---
 name: technical-architecture-planner
-description: Design or update architecture from verified requirements and current project context while preferring existing project patterns.
+description: Design or update architecture (HLD) from verified requirements and current project context while preferring existing project patterns.
 ---
 
 # Technical Architecture Planner
@@ -19,7 +19,7 @@ Verified requirements, baseline architecture, change impact, risks, and integrat
 
 ## Deliverable
 
-Architecture proposal, reuse map, alternatives/tradeoffs, affected contracts, risks, and ADR recommendation. Write or update the artifact at `agentic/data/project-context/features/<work-item-id>/ARCHITECTURE.md` (template: `agentic/kit/templates/architecture.md`).
+Architecture proposal (HLD), reuse map, alternatives/tradeoffs, affected contracts, risks, and ADR recommendation. Write or update the feature HLD at `agentic/data/project-context/features/<work-item-id>/ARCHITECTURE.md` (template: `agentic/kit/templates/architecture.md`). If the project-level HLD at `agentic/data/project-context/ARCHITECTURE.md` does not exist, also draft it at `status: DRAFT` (template: `agentic/kit/templates/hld.md`); never mark it `APPROVED` yourself. Add the feature HLD to its `## Feature Architecture Index`.
 
 ## Readiness boundary
 

@@ -1,4 +1,6 @@
-# TECH-SPEC-XXX: Title
+# TECH-SPEC-XXX (LLD): Title
+
+<!-- Feature-scoped Low-Level Design. Refines the feature HLD in ARCHITECTURE.md. -->
 
 ## Status
 Draft
