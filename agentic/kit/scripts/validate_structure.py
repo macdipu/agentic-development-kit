@@ -46,6 +46,11 @@ def main():
     skills = registry.discover()
     if not skills:
         raise ValueError('No skills found')
+    from agentic_runtime.installation import BEGIN, END
+    agents = (ROOT / 'AGENTS.md').read_text()
+    fragment = (KIT / 'config/AGENTS.fragment.md').read_text().rstrip()
+    if BEGIN not in agents or agents.split(BEGIN, 1)[1].split(END, 1)[0].strip() != fragment:
+        raise ValueError('AGENTS.md managed block must match agentic/kit/config/AGENTS.fragment.md')
     config = json.loads((KIT / 'config/skill-registry.json').read_text())
     caps = json.loads((KIT / 'config/capabilities.json').read_text())
     permissions = json.loads((KIT / 'config/permissions.json').read_text())
