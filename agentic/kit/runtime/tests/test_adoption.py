@@ -36,6 +36,15 @@ class AdoptionTests(unittest.TestCase):
         self.assertFalse((self.host / 'agentic/data/work-items/TASK-KIT-001.md').exists())
         self.assertFalse((self.host / 'agentic/data/project-context/kit-runtime.json').exists())
 
+    def test_install_does_not_double_the_agents_import(self):
+        (self.host / 'CLAUDE.md').write_text('Host notes\n@AGENTS.md\n')
+        self.assertTrue(self.install()['ok'])
+        claude = (self.host / 'CLAUDE.md').read_text()
+        self.assertEqual(claude.count('@AGENTS.md'), 1)
+        self.assertTrue(claude.startswith('Host notes\n\n<!-- agentic-kit:start -->'))
+        self.assertTrue(self.install()['ok'])
+        self.assertEqual((self.host / 'CLAUDE.md').read_text(), claude)
+
     def test_harness_install_preserves_host_rules_and_hooks(self):
         (self.host / 'AGENTS.md').write_text('Host business rules\n')
         (self.host / 'README.md').write_text('Host README\n')

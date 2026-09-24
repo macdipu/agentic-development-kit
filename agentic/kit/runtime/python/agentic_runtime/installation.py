@@ -6,6 +6,7 @@ from .paths import RUNS_DIR_REL
 
 BEGIN = '<!-- agentic-kit:start -->'
 END = '<!-- agentic-kit:end -->'
+IMPORT_AGENTS = '@AGENTS.md'
 
 
 def managed_text(existing, addition):
@@ -17,6 +18,18 @@ def managed_text(existing, addition):
         _, after = rest.split(END, 1)
         return before + block + after
     return existing + ('\n\n' if existing and not existing.endswith('\n\n') else '') + block + '\n'
+
+
+def claude_text(existing):
+    """CLAUDE.md managed block importing AGENTS.md; a bare `@AGENTS.md` left outside the
+    block (e.g. from a pre-kit CLAUDE.md) is dropped so the import is not doubled."""
+    merged = managed_text(existing, IMPORT_AGENTS)
+    before, rest = merged.split(BEGIN, 1)
+    block, after = rest.split(END, 1)
+    def drop(text):
+        return '\n'.join(line for line in text.split('\n') if line.strip() != IMPORT_AGENTS)
+    before = drop(before).strip('\n')
+    return (before + '\n\n' if before else '') + BEGIN + block + END + drop(after)
 
 
 def merge_hooks(existing, template):

@@ -13,7 +13,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'agentic/kit/runtime/python'))
 from agentic_runtime.doctor import detect_project, diagnose
-from agentic_runtime.installation import managed_text, merge_hooks, unfinished_runs
+from agentic_runtime.installation import claude_text, managed_text, merge_hooks, unfinished_runs
 from agentic_runtime import handoff
 from agentic_runtime.paths import ACTIVE_TASK_POINTER_REL
 
@@ -95,9 +95,10 @@ def _stage_docs_and_instructions(put, stage, target, source, upgrade=False):
         current = target / relative
         put(relative, current.read_text() if current.exists() and not upgrade else (source / name).read_text())
     fragment = (stage / 'agentic/kit/config/AGENTS.fragment.md').read_text()
-    for name, addition in [('AGENTS.md', fragment), ('CLAUDE.md', '@AGENTS.md\n')]:
-        current = (target / name).read_text() if (target / name).exists() else ''
-        put(name, managed_text(current, addition))
+    def existing(name):
+        return (target / name).read_text() if (target / name).exists() else ''
+    put('AGENTS.md', managed_text(existing('AGENTS.md'), fragment))
+    put('CLAUDE.md', claude_text(existing('CLAUDE.md')))
     ignore = (target / '.gitignore').read_text() if (target / '.gitignore').exists() else ''
     additions = [line for line in IGNORE if line not in ignore.splitlines()]
     put('.gitignore', ignore.rstrip('\n') + '\n' + '\n'.join(additions) + ('\n' if additions else ''))
