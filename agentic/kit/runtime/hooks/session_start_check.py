@@ -14,9 +14,10 @@ startup/resume/clear alike). Order of checks:
 Unreadable state is reported as UNKNOWN with explicit recovery instructions.
 The session remains available for diagnosis, but must not assume there is no work.
 
-Also surfaces `.agent/HANDOFF.md` + the latest `.agent/sessions/*.md` entry, if
-present, as pickup context -- the same information upstream agent-handoff's own
-`pickup` command prints, folded into this hook instead of a separate CLI step.
+Also surfaces a condensed `.agent/HANDOFF.md` (plus the latest `.agent/sessions/*.md`
+entry only when it differs) as pickup context -- see handoff.pickup_summary. A note
+about a different run than the midflight one is flagged stale. The full record stays
+on disk: `agentic_runtime.cli pickup --full`.
 """
 import json
 import sys
@@ -39,7 +40,7 @@ def _check_active_task():
     from agentic_runtime.hooks_support import load_active_task
     pointer, _store, run = load_active_task(ACTIVE_TASK_POINTER)
     if pointer is None:
-        return None
+        return None, None
     detail = f"run_id={pointer['run_id']} task_id={pointer['task_id']}"
     if run:
         detail += f" stage={run.stage} status={run.status} title={run.title!r}"
@@ -48,18 +49,18 @@ def _check_active_task():
         f'({detail}). Resume it (continue the work, then `task-finish` or '
         '`task-fail`) before starting anything new. Do not start a new run '
         'for this work item.'
-    )
+    ), pointer['run_id']
 
 
 def _check_unfinished_run():
     if not DEFAULT_RUNS_DIR.is_dir():
-        return None
+        return None, None
     from agentic_runtime.store import RuntimeStore
     store = RuntimeStore(str(DEFAULT_RUNS_DIR))
     runs = store.list_runs()
     unfinished = [r for r in runs if r['status'] in UNFINISHED_STATUSES]
     if not unfinished:
-        return None
+        return None, None
     unfinished.sort(key=lambda r: r['updated_at'], reverse=True)
     run = unfinished[0]
     return (
@@ -68,26 +69,20 @@ def _check_unfinished_run():
         f"status={run['status']} title={run['title']!r}). Resume it "
         '(`agentic_runtime.cli show <run_id>`, then continue or `recover`) '
         'before starting the next work item.'
-    )
+    ), run['run_id']
 
 
-def _check_handoff():
+def _check_handoff(active_run_id):
     from agentic_runtime import handoff
-    parts = []
-    note = handoff.read_handoff(REPO_ROOT)
-    if note:
-        parts.append(f'HANDOFF NOTE (.agent/HANDOFF.md):\n{note}')
-    session = handoff.read_latest_session(REPO_ROOT)
-    if session:
-        parts.append(f'LATEST SESSION (.agent/sessions/):\n{session}')
-    return '\n\n'.join(parts) or None
+    return handoff.pickup_summary(REPO_ROOT, active_run_id=active_run_id)
 
 
 def main():
+    run_id = None
     try:
-        context = _check_active_task()
+        context, run_id = _check_active_task()
         if context is None:
-            context = _check_unfinished_run()
+            context, run_id = _check_unfinished_run()
         if context is None:
             context = (
                 'No midflight task or unfinished run found. Clear to start '
@@ -99,7 +94,7 @@ def main():
             f'Run doctor and reconcile the database/marker: {exc}'
         )
     try:
-        handoff_context = _check_handoff()
+        handoff_context = _check_handoff(run_id)
     except Exception as exc:
         handoff_context = f'Could not read cross-agent handoff notes: {exc}'
     if handoff_context:

@@ -23,6 +23,7 @@ derived, not supplied: the governed run's full ledger (see summarize_run), so
 the committed record carries the run's state, not just its id.
 """
 import json
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +33,9 @@ from agentic_runtime import commits as commit_log
 from agentic_runtime.timing import durations
 
 VALID_AGENTS = ("claude", "codex")
+PICKUP_SECTIONS = ("Task", "Completed", "Blockers", "Decisions", "Next Action")
+NOTE_SECTIONS = PICKUP_SECTIONS + ("Changed Files", "Tests", "Runtime", "Commits", "Git Snapshot", "Git Status")
+PICKUP_LIMIT = 4000
 
 
 def _now_iso() -> str:
@@ -303,3 +307,63 @@ def read_latest_session(repo_root, exclude: Optional[Path] = None) -> Optional[s
         return None
     sessions = [p for p in sorted(sessions_dir.glob("*.md")) if p != exclude]
     return sessions[-1].read_text() if sessions else None
+
+
+def _split_sections(text: str):
+    """Split on the note's own section titles only, so a `## ` line inside free-text
+    fields (task, completed, ...) stays part of that field."""
+    header, *chunks = re.split(rf"^## ({'|'.join(map(re.escape, NOTE_SECTIONS))})[ \t]*$", text, flags=re.M)
+    sections = {title: body.strip() for title, body in zip(chunks[::2], chunks[1::2])}
+    return header.strip(), sections
+
+
+def _runtime_line(runtime: str) -> str:
+    wanted = ("- Run:", "- Stage:", "- Active task:")
+    return " | ".join(l[2:] for l in runtime.splitlines() if l.startswith(wanted))
+
+
+def note_run_id(text: str) -> Optional[str]:
+    match = re.search(r"^- Run: (\S+)", _split_sections(text)[1].get("Runtime", ""), flags=re.M)
+    return match.group(1) if match else None
+
+
+def condense_note(text: str) -> str:
+    """Header, the picking-up sections, and a one-line Runtime summary -- the rest of a
+    committed note (checkpoints, audit, tool calls, git status) stays on disk."""
+    header, sections = _split_sections(text)
+    parts = [header]
+    runtime = _runtime_line(sections.get("Runtime", ""))
+    if runtime:
+        parts.append(f"Runtime: {runtime}")
+    parts += [f"## {name}\n{sections[name]}" for name in PICKUP_SECTIONS if sections.get(name)]
+    return "\n\n".join(parts)
+
+
+def pickup_summary(repo_root, active_run_id: Optional[str] = None, limit: int = PICKUP_LIMIT) -> Optional[str]:
+    """Condensed pickup context for SessionStart / `pickup`: HANDOFF.md, plus the latest
+    session record only when it says something HANDOFF.md does not (close_session writes
+    both from the same fields, so usually it is a duplicate). A note about a different
+    run than the midflight one is flagged stale."""
+    note = read_handoff(repo_root)
+    session = read_latest_session(repo_root)
+    if not note and not session:
+        return None
+    parts = []
+    note_sections = None
+    if note:
+        condensed = condense_note(note)
+        note_sections = _split_sections(condensed)[1]
+        noted_run = note_run_id(note)
+        if active_run_id and noted_run and noted_run != active_run_id:
+            parts.append(f"STALE HANDOFF: this note describes run {noted_run}, but the midflight run is "
+                         f"{active_run_id}. Trust the midflight report; read this only as background.")
+        parts.append(f"HANDOFF NOTE (.agent/HANDOFF.md, condensed):\n{condensed}")
+    if session:
+        condensed_session = condense_note(session)
+        if _split_sections(condensed_session)[1] != note_sections:
+            parts.append(f"LATEST SESSION (.agent/sessions/, condensed):\n{condensed_session}")
+    text = "\n\n".join(parts)
+    footer = "\n\nFull record: `agentic_runtime.cli pickup --full`; run ledger: `agentic_runtime.cli show <run_id>`."
+    if len(text) > limit:
+        text = text[:limit].rstrip() + "\n...(truncated)"
+    return text + footer

@@ -29,6 +29,20 @@ class HookTests(HarnessCase):
         self.assertEqual(verdict['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIn('UNKNOWN', self.hook('session_start_check.py')['hookSpecificOutput']['additionalContext'])
 
+    def test_session_start_condenses_handoff_and_flags_other_run(self):
+        from agentic_runtime import handoff
+        self.start()
+        old_run = self.run_id
+        handoff.close_session(self.root, agent='claude', task='old', completed='c', status='CANCELLED',
+                              store=self.store, run_id=old_run)
+        self.orch.cancel(old_run)
+        self.start()
+        context = self.hook('session_start_check.py')['hookSpecificOutput']['additionalContext']
+        self.assertIn('MIDFLIGHT RUN', context)
+        self.assertIn(f'STALE HANDOFF: this note describes run {old_run}, but the midflight run is {self.run_id}', context)
+        self.assertNotIn('### Audit', context)
+        self.assertNotIn('LATEST SESSION', context)
+
     def test_committed_runtime_resumes_from_another_checkout_path(self):
         self.start()
         task, _ = self.orch.start_task(self.run_id, 'prompt-intake-adapter')

@@ -75,6 +75,55 @@ class CommitTests(HarnessCase):
             self.assertIn('RUN_STARTED', runtime)
             self.assertIn('CONTEXT_REFRESHED {"paths":["scope.md"]}', runtime)
 
+    def test_pickup_summary_drops_ledger_and_duplicate_session(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        self.context('existing_task')
+        handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING',
+                              next_action='do next', store=self.store, run_id=self.run_id)
+        summary = handoff.pickup_summary(self.root, active_run_id=self.run_id)
+        self.assertIn(f'Runtime: Run: {self.run_id} | Stage: CONTEXT', summary)
+        self.assertIn('## Next Action\ndo next', summary)
+        for dropped in ('### Audit', '### Checkpoints', 'RUN_STARTED', '## Git Snapshot', 'LATEST SESSION', 'STALE'):
+            self.assertNotIn(dropped, summary)
+        self.assertLess(len(summary), handoff.PICKUP_LIMIT + 200)
+
+    def test_pickup_summary_flags_note_about_another_run(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        self.start()
+        handoff.close_session(self.root, agent='codex', task='old', completed='c', status='CANCELLED',
+                              store=self.store, run_id=self.run_id)
+        summary = handoff.pickup_summary(self.root, active_run_id='RUN-NEWER')
+        self.assertTrue(summary.startswith(f'STALE HANDOFF: this note describes run {self.run_id}'))
+
+    def test_pickup_summary_keeps_session_that_differs_from_handoff(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING')
+        handoff.write_session(self.root, agent='codex', operator='o', git_snapshot_text='Branch: main',
+                              task='other', completed='x', changed_files=[], tests='', blockers='',
+                              decisions='', next_action='n')
+        self.assertIn('LATEST SESSION', handoff.pickup_summary(self.root))
+
+    def test_condense_note_ignores_headings_and_run_lines_in_free_text(self):
+        note = handoff.render_handoff(
+            last_agent='claude', operator='o', status='RUNNING', task='t\n- Run: FAKE',
+            completed='a\n## Sub heading\nkept', changed_files=[], tests='', blockers='', decisions='',
+            next_action='n', git_snapshot_text='## main', runtime='- Run: RUN-1\n- Stage: X')
+        self.assertEqual(handoff.note_run_id(note), 'RUN-1')
+        self.assertIn('## Sub heading\nkept', handoff.condense_note(note))
+
+    def test_pickup_cli_is_condensed_unless_full(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING')
+        short = self.cli('pickup', '--repo', str(self.root))
+        full = self.cli('pickup', '--repo', str(self.root), '--full')
+        self.assertEqual(short.returncode, 0, short.stderr)
+        self.assertNotIn('## Git Snapshot', short.stdout)
+        self.assertIn('## Git Snapshot', full.stdout)
+
     def test_same_session_id_rewrites_one_record(self):
         self.init_repo()
         self.commit('a.txt', 'chore: seed\n')

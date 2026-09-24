@@ -218,9 +218,13 @@ Before starting work, read the current handoff state:
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py pickup
 ```
 
-Prints `.agent/HANDOFF.md` and the latest `.agent/sessions/*.md` entry. Claude
-Code gets this automatically in the `SessionStart` hook's `additionalContext`;
-`pickup` is for hookless CLIs (including Codex) or manual use.
+Prints a condensed pickup note (~4KB cap): the HANDOFF header, a one-line Runtime
+summary, and Task/Completed/Blockers/Decisions/Next Action. The latest
+`.agent/sessions/*.md` entry is added only when it differs from HANDOFF, and a
+note about a different run than the active task is flagged `STALE HANDOFF`.
+`pickup --full` prints both files verbatim. Claude Code gets the condensed note
+automatically in the `SessionStart` hook's `additionalContext`; `pickup` is for
+hookless CLIs (including Codex) or manual use.
 
 When finishing a work session, record it:
 

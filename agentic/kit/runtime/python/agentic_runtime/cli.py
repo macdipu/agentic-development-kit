@@ -298,8 +298,9 @@ def main(argv=None):
     guard.add_argument('--tool', required=True, choices=sorted(NATIVE_TOOL_CAPABILITY))
     guard.add_argument('--command', help='The Bash command text, required when --tool Bash')
     guard.add_argument('--input', default='{}', help='JSON native tool input including write paths')
-    pickup = sub.add_parser('pickup', help='Print .agent/HANDOFF.md + the latest session record for a hookless CLI/platform')
+    pickup = sub.add_parser('pickup', help='Print the condensed handoff note (what SessionStart injects) for a hookless CLI/platform')
     pickup.add_argument('--repo', type=Path, default=REPO_ROOT)
+    pickup.add_argument('--full', action='store_true', help='Print HANDOFF.md and the latest session record verbatim')
     route_cache_get = sub.add_parser('route-cache-get', help='Look up a cached routing decision; skip re-reading meta-docs in full on a hit')
     route_cache_get.add_argument('--work-type', choices=sorted(WORK_TYPES), required=True)
     route_cache_get.add_argument('--project-type', choices=list(PROJECT_TYPES), required=True)
@@ -355,6 +356,11 @@ def main(argv=None):
             print(json.dumps(install_claude_hooks(args.repo, KIT / 'config/hooks.json'), indent=2))
             return 0
         if args.cmd == 'pickup':
+            if not args.full:
+                pointer = args.repo / '.agent/runtime/active-task.json'
+                active_run = json.loads(pointer.read_text()).get('run_id') if pointer.is_file() else None
+                print(handoff.pickup_summary(args.repo, active_run_id=active_run) or 'No .agent/HANDOFF.md yet.')
+                return 0
             note = handoff.read_handoff(args.repo)
             session = handoff.read_latest_session(args.repo)
             print(note or 'No .agent/HANDOFF.md yet.')
