@@ -1,6 +1,6 @@
 # ARCH-XXX (HLD): Title
 
-<!-- Feature-scoped High-Level Design. Project-level HLD uses hld.md; LLD lives in tech-spec.md. -->
+<!-- Feature-scoped High-Level Design. Project-level HLD uses project-hld.md; LLD lives in feature-lld.md. -->
 
 ## Status
 Proposed

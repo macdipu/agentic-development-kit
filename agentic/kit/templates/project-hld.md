@@ -1,7 +1,7 @@
 # HLD: <Project Name> System Architecture
 
 <!-- Project-level High-Level Design. Lives at agentic/data/project-context/ARCHITECTURE.md.
-     Feature-scoped HLD uses architecture.md; feature LLD uses tech-spec.md. -->
+     Feature-scoped HLD uses feature-hld.md; feature LLD uses feature-lld.md. -->
 
 ## Status
 DRAFT
