@@ -145,7 +145,9 @@ def summarize_run(store, run_id: str) -> str:
     lines += _section("Attempts", [f"- {key}: {count}" for key, count in sorted(meta.get("attempts", {}).items())])
     lines += _section("Budget Overrides", [f"- {key}: {value}" for key, value in sorted(meta.get("budget_overrides", {}).items())])
     lines += _section("Context Files", [f"- {path}: {digest}" for path, digest in sorted(meta.get("context", {}).get("files", {}).items())])
-    lines += _section("Skill Pins", [f"- {skill}: {rev}" for skill, rev in sorted(meta.get("skill_pins", {}).items())])
+    pins = sorted(meta.get("skill_pins", {}).items())
+    lines += [f"\n### Skill Pins ({len(pins)})", "<details><summary>skill revisions</summary>\n",
+              *(f"- {skill}: {rev}" for skill, rev in pins), "\n</details>"] if pins else _section("Skill Pins", [])
     lines += _section("Checkpoints", [f"- {c['created_at']} {c['stage']} {c['status']}" for c in data.get("checkpoints", [])])
     lines += _section("Audit", [
         f"- {e['created_at']} {e['event']}" + (f" {_compact(e['payload'])}" if e.get("payload") else "")
@@ -203,7 +205,8 @@ def write_handoff(repo_root, *, ts: Optional[str] = None, **fields) -> Path:
 def render_session(*, agent: str, operator: str, ended: str, git_snapshot_text: str, task: str,
                     completed: str, changed_files: Optional[Iterable[str]], tests: str,
                     blockers: str, decisions: str, next_action: str,
-                    commits: Optional[Iterable[str]] = None, runtime: str = "") -> str:
+                    commits: Optional[Iterable[str]] = None, runtime: str = "",
+                    session_id: Optional[str] = None) -> str:
     _validate_agent(agent)
     lines = git_snapshot_text.splitlines()
     branch = next((l.split(": ", 1)[1] for l in lines if l.startswith("Branch: ")), "")
@@ -212,7 +215,8 @@ def render_session(*, agent: str, operator: str, ended: str, git_snapshot_text: 
         f"- Agent: {agent}\n"
         f"- Operator: {operator}\n"
         f"- Ended: {ended}\n"
-        f"- Branch: {branch}\n"
+        + (f"- Session: {session_id}\n" if session_id else "")
+        + f"- Branch: {branch}\n"
         f"- Recent commit: {commit}\n"
         "\n## Task\n"
         f"{task}\n"
@@ -237,37 +241,52 @@ def render_session(*, agent: str, operator: str, ended: str, git_snapshot_text: 
     )
 
 
-def write_session(repo_root, *, agent: str, ts: Optional[str] = None, **fields) -> Path:
+def _session_file(repo_root, session_id: Optional[str]) -> Optional[Path]:
+    """The record an earlier close in the same agent session wrote, if any."""
+    sessions_dir = Path(repo_root) / ".agent" / "sessions"
+    if not session_id or not sessions_dir.is_dir():
+        return None
+    marker = f"- Session: {session_id}\n"
+    return next((p for p in sorted(sessions_dir.glob("*.md"), reverse=True) if marker in p.read_text()), None)
+
+
+def write_session(repo_root, *, agent: str, ts: Optional[str] = None, session_id: Optional[str] = None,
+                  **fields) -> Path:
+    """New record per close, or -- given a session_id -- one record per agent session,
+    rewritten in place on each close (a Stop hook fires after every reply)."""
     ts = ts or _now_iso()
     sessions_dir = Path(repo_root) / ".agent" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
-    path = sessions_dir / f"{_stamp_for_filename(ts)}-{agent}.md"
-    path.write_text(render_session(agent=agent, ended=ts, **fields))
+    path = _session_file(repo_root, session_id) or sessions_dir / f"{_stamp_for_filename(ts)}-{agent}.md"
+    path.write_text(render_session(agent=agent, ended=ts, session_id=session_id, **fields))
     return path
 
 
 def close_session(repo_root, *, agent: str, task: str, completed: str, status: str,
                    changed_files: Optional[Iterable[str]] = None, tests: str = "",
                    blockers: str = "", decisions: str = "", next_action: str = "",
-                   store=None, run_id: Optional[str] = None) -> dict:
+                   store=None, run_id: Optional[str] = None, session_id: Optional[str] = None) -> dict:
     """Mirror upstream's `close-session`: write a session file, then rewrite HANDOFF.md from it."""
     _validate_agent(agent)
     changed_files = list(changed_files or [])
     snapshot = git_snapshot(repo_root)
     operator = git_user(repo_root)
-    commits = commit_log.format_commit_lines(commit_log.commits_since(repo_root, previous_session_head(repo_root)))
+    base = previous_session_head(repo_root, exclude=_session_file(repo_root, session_id))
+    commits = commit_log.format_commit_lines(commit_log.commits_since(repo_root, base))
     fields = dict(task=task, completed=completed, changed_files=changed_files, tests=tests,
                   blockers=blockers, decisions=decisions, next_action=next_action, commits=commits,
                   runtime=summarize_run(store, run_id) if store is not None and run_id else "")
-    session_path = write_session(repo_root, agent=agent, operator=operator, git_snapshot_text=snapshot, **fields)
+    session_path = write_session(repo_root, agent=agent, operator=operator, git_snapshot_text=snapshot,
+                                 session_id=session_id, **fields)
     handoff_path = write_handoff(repo_root, last_agent=agent, operator=operator, status=status,
                                   git_snapshot_text=snapshot, **fields)
     return {"session": str(session_path), "handoff": str(handoff_path)}
 
 
-def previous_session_head(repo_root) -> Optional[str]:
-    """The commit the latest session record ended on -- the base for this session's commit log."""
-    latest = read_latest_session(repo_root) or ''
+def previous_session_head(repo_root, exclude: Optional[Path] = None) -> Optional[str]:
+    """The commit the latest session record ended on -- the base for this session's commit log.
+    `exclude` skips the current session's own record when it is being rewritten."""
+    latest = read_latest_session(repo_root, exclude=exclude) or ''
     line = next((l for l in latest.splitlines() if l.startswith('- Recent commit: ')), '')
     sha = line.split(': ', 1)[1].split(' ', 1)[0] if line else ''
     return sha if sha and sha != '(unavailable)' else None
@@ -278,9 +297,9 @@ def read_handoff(repo_root) -> Optional[str]:
     return path.read_text() if path.is_file() else None
 
 
-def read_latest_session(repo_root) -> Optional[str]:
+def read_latest_session(repo_root, exclude: Optional[Path] = None) -> Optional[str]:
     sessions_dir = Path(repo_root) / ".agent" / "sessions"
     if not sessions_dir.is_dir():
         return None
-    sessions = sorted(sessions_dir.glob("*.md"))
+    sessions = [p for p in sorted(sessions_dir.glob("*.md")) if p != exclude]
     return sessions[-1].read_text() if sessions else None

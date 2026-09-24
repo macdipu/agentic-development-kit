@@ -75,6 +75,19 @@ class CommitTests(HarnessCase):
             self.assertIn('RUN_STARTED', runtime)
             self.assertIn('CONTEXT_REFRESHED {"paths":["scope.md"]}', runtime)
 
+    def test_same_session_id_rewrites_one_record(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        first = handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING', session_id='s1')
+        self.commit('b.txt', commits.render_message(type='feat', subject='add b', trigger='user-request'))
+        again = handoff.close_session(self.root, agent='claude', task='t', completed='c2', status='RUNNING', session_id='s1')
+        self.assertEqual(first['session'], again['session'])
+        self.assertIn('feat: add b', Path(again['session']).read_text())
+        other = handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING', session_id='s2')
+        self.assertNotEqual(other['session'], first['session'])
+        self.assertEqual(len(list((self.root / '.agent/sessions').glob('*.md'))), 2)
+        self.assertIn('## Commits\n(none)', Path(other['session']).read_text())
+
     def test_session_without_run_says_so(self):
         self.init_repo()
         self.commit('a.txt', 'chore: seed\n')

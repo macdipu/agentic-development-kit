@@ -77,7 +77,7 @@ def probe_hooks(kit):
         root = Path(temporary)
         copy = root / 'agentic/kit'
         for name in ('runtime', 'config', 'skills'):
-            shutil.copytree(kit / name, copy / name, ignore=shutil.ignore_patterns('__pycache__'))
+            shutil.copytree(kit / name, copy / name, ignore=shutil.ignore_patterns('__pycache__', '.pytest_cache'))
         runs_dir = root / RUNS_DIR_REL
         store = RuntimeStore(str(runs_dir))
         orch = Orchestrator(store, copy)

@@ -2,6 +2,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from .paths import STATE_DIR_REL
 from .registry import ToolRegistry
 
 UNSAFE_SHELL_CHARS = set(';&|`$<>\n\r')
@@ -53,6 +54,8 @@ def validate_write(root, path, artifact_only=False):
     relative = target.relative_to(Path(root).resolve())
     if '.git' in relative.parts:
         raise PermissionError('Direct writes to Git internals are denied')
+    if relative.parts[:len(STATE_DIR_REL.parts)] == STATE_DIR_REL.parts:
+        raise PermissionError('Direct writes to the runtime ledger are denied; use the runtime CLI')
     if artifact_only:
         allowed = ('agentic/data/project-context/', 'agentic/data/work-items/', 'agentic/data/artifacts/')
         if not relative.as_posix().startswith(allowed) or target.suffix not in {'.md', '.json', '.yaml', '.yml', '.txt', '.csv'}:

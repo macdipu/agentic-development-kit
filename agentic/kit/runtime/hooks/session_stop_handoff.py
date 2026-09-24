@@ -11,7 +11,9 @@ When a task is active, writes `.agent/HANDOFF.md` + a new `.agent/sessions/*.md`
 entry (git-tracked, format compatible with github.com/ishipu/agent-handoff), with a
 Runtime section summarizing the run's ledger, so a
 different agent platform (or a different machine, after `git pull`) can pick up
-this run's state. Never blocks Stop: any error is reported, not enforced.
+this run's state. One record per Claude session (keyed by the hook payload's
+session_id), rewritten on each Stop rather than one new file per reply. Never
+blocks Stop: any error is reported, not enforced.
 """
 import json
 import sys
@@ -26,7 +28,7 @@ def _emit(message):
     return 0
 
 
-def _close_active_run():
+def _close_active_run(session_id=None):
     from agentic_runtime.hooks_support import load_active_task
     from agentic_runtime import handoff
     _pointer, store, run = load_active_task(ACTIVE_TASK_POINTER)
@@ -44,14 +46,15 @@ def _close_active_run():
         completed=f"Reached stage {run.stage} (status {run.status}).",
         changed_files=changed_files,
         blockers='Task was still active when Claude stopped.' if task else '',
-        next_action=next_action, store=store, run_id=run.run_id,
+        next_action=next_action, store=store, run_id=run.run_id, session_id=session_id,
     )
     return f"Wrote handoff notes for run {run.run_id} ({result['handoff']})."
 
 
 def main():
     try:
-        note = _close_active_run()
+        payload = json.loads(sys.stdin.read() or '{}')
+        note = _close_active_run(payload.get('session_id'))
     except Exception as exc:
         note = f'Could not write handoff notes (fail open): {exc}'
     return _emit(note or 'No governed run is active; nothing to hand off.')

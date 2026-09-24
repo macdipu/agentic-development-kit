@@ -20,10 +20,12 @@ agentic/
 │   └── runtime/                  # runtime guides, hooks, Python package, tests
 └── data/                              # DATA — see data/README.md
     ├── project-context/                # per-project discovery cache + generated feature docs
-    ├── work-items/                       # freeform task docs (not templated feature artifacts)
-    └── runtime/
-        ├── state/                          # gitignored — active-task pointer, run DB
-        └── logs/                             # gitignored
+    └── work-items/                       # freeform task docs (not templated feature artifacts)
+
+.agent/                                # repo root — agent state, git-tracked
+├── HANDOFF.md, sessions/*.md          # cross-agent handoff notes (full ## Runtime per session)
+└── runtime/                           # active-task pointer, runs/*.json ledger, route cache
+                                       # (*.lock, *.tmp, logs/ gitignored)
 ```
 
 Never put generated or per-project content in the kit folders above `data/`; never put skill/template/config source in `data/`. See `agentic/data/README.md` for what goes in each data subfolder.

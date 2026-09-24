@@ -187,7 +187,7 @@ invocation still needs one observed session.
 
 ## Cross-agent-platform handoff
 
-Separate from this runtime's own governed-run store, and compatible with
+Stored beside this runtime's governed-run store under `.agent/`, and compatible with
 [ishipu/agent-handoff](https://github.com/ishipu/agent-handoff)'s file format (a
 Python-native port here, not a Node dependency): `.agent/HANDOFF.md` and
 `.agent/sessions/*.md` are plain Markdown, git-tracked, so any agent platform —
@@ -201,7 +201,10 @@ attempts, budget overrides, context hashes, skill pins, checkpoints, every audit
 event with its redacted payload, tool calls). The pointer stores its store
 directory relative to itself and each run stores `metadata.repo` relative to
 the store, so `git pull` on another machine resumes the same run. Only
-`*.lock`, `*.tmp`, and `logs/` are gitignored. Git provides no cross-machine
+`*.lock`, `*.tmp`, `logs/`, and `repair-marker` backups are gitignored. Native
+tool writes into `.agent/runtime/` are denied, so the ledger changes only through
+the runtime; checkpoints store only the metadata keys that changed since the
+previous one; the Stop hook keeps one session record per Claude session. Git provides no cross-machine
 lock: finish and push on one machine before resuming on another.
 
 `init_project.py` scaffolds `.agent/`, `.claude/skills/agent-handoff/SKILL.md`,

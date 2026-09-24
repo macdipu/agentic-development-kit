@@ -47,6 +47,20 @@ class HookTests(HarnessCase):
         self.assertEqual(Path(run.metadata['repo']), other.resolve())
         self.assertEqual(run.metadata['active_task']['id'], task['id'])
 
+    def test_native_writes_into_runtime_ledger_are_denied(self):
+        from agentic_runtime.tools import validate_write
+        for path in ('.agent/runtime/runs/forged.json', '.agent/runtime/active-task.json'):
+            with self.subTest(path=path), self.assertRaisesRegex(PermissionError, 'runtime ledger'):
+                validate_write(self.root, path)
+        validate_write(self.root, '.agent/HANDOFF.md')
+
+    def test_checkpoints_store_only_changed_metadata(self):
+        self.context()
+        checkpoints = self.store.ledger(self.run_id)['checkpoints']
+        self.assertIn('skill_pins', checkpoints[0]['payload'])
+        self.assertTrue(all('skill_pins' not in c['payload'] for c in checkpoints[1:]))
+        self.assertTrue(any('results' in c['payload'] for c in checkpoints[1:]))
+
     def test_marker_cannot_be_overwritten_or_cleared_by_another_run(self):
         marker = self.root / '.agent/runtime/active-task.json'
         markers.reserve(marker, self.store.store_dir, 'first')

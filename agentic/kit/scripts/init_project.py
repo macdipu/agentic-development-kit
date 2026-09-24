@@ -20,7 +20,7 @@ from agentic_runtime.paths import ACTIVE_TASK_POINTER_REL, STATE_DIR_REL
 DOCS = ['README.md', 'ADOPTION.md', 'SKILL-CATALOG.md']
 LEGACY_STATE_REL = Path('agentic/data/runtime/state')
 IGNORE = ['/.agent/runtime/**/*.lock', '/.agent/runtime/**/*.tmp', '/.agent/runtime/**/.active-task-*',
-          '/.agent/runtime/logs/',
+          '/.agent/runtime/logs/', '/.agent/runtime/active-task.recovered-*.json',
           '/agentic/data/artifacts/', '/agentic-backups/', '__pycache__/', '*.py[cod]']
 
 HANDOFF_SKILL = """---
@@ -78,7 +78,7 @@ def _stage_kit(put, changed, stage, target, source, upgrade):
     kit_relative = 'agentic/kit'
     current_kit = target / kit_relative
     kit_source = current_kit if current_kit.exists() and not upgrade else source / 'kit'
-    shutil.copytree(kit_source, stage / kit_relative, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    shutil.copytree(kit_source, stage / kit_relative, ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '.pytest_cache'))
     if upgrade and current_kit.exists():
         # Preserve project configuration. New configuration files are supplied
         # by the new kit; existing policy choices are never silently replaced.

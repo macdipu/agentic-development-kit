@@ -6,4 +6,5 @@ __pycache__/
 /.agent/runtime/**/*.tmp
 /.agent/runtime/**/.active-task-*
 /.agent/runtime/logs/
+/.agent/runtime/active-task.recovered-*.json
 /agentic/data/artifacts/

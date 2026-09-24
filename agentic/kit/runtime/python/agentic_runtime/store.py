@@ -250,8 +250,17 @@ class RuntimeStore:
 
     def save_checkpoint(self, run, event, payload=None):
         # Call inside transaction() so state, checkpoint, and audit commit together.
+        # The checkpoint payload is only the metadata keys that changed since the previous
+        # save (the first one is complete), so the git-tracked run file grows by the delta,
+        # not by a full metadata copy per guarded tool call.
         if not self._tx_depth:
             raise RuntimeError("save_checkpoint requires a transaction")
+        previous = (self._view(run.run_id).get("run") or {}).get("metadata") or {}
+        current = self._to_disk(run.metadata)
+        delta = {key: value for key, value in current.items() if previous.get(key) != value}
+        removed = sorted(set(previous) - set(current))
+        if removed:
+            delta["_removed"] = removed
         self.save_run(run)
-        self.checkpoint(run.run_id, run.stage, run.status, run.metadata, run.updated_at)
+        self.checkpoint(run.run_id, run.stage, run.status, delta, run.updated_at)
         self.audit(run.run_id, event, payload or {}, run.updated_at)
