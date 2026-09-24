@@ -89,11 +89,12 @@ def _stage_kit(put, changed, stage, target, source, upgrade):
     return current_kit
 
 
-def _stage_docs_and_instructions(put, stage, target, source):
+def _stage_docs_and_instructions(put, stage, target, source, upgrade=False):
+    # Kit docs describe the kit, so an upgrade refreshes them; a plain reinstall keeps host copies.
     for name in DOCS:
         relative = 'agentic/' + name
         current = target / relative
-        put(relative, current.read_text() if current.exists() else (source / name).read_text())
+        put(relative, current.read_text() if current.exists() and not upgrade else (source / name).read_text())
     fragment = (stage / 'agentic/kit/config/AGENTS.fragment.md').read_text()
     for name, addition in [('AGENTS.md', fragment), ('CLAUDE.md', '@AGENTS.md\n')]:
         current = (target / name).read_text() if (target / name).exists() else ''
@@ -231,7 +232,7 @@ def install(target, project, project_type, mode, agent, upgrade=False):
             changed.append(relative)
 
         current_kit = _stage_kit(put, changed, stage, target, source, upgrade)
-        _stage_docs_and_instructions(put, stage, target, source)
+        _stage_docs_and_instructions(put, stage, target, source, upgrade)
         _scaffold_project_context(put, target, source, project, project_type)
         _scaffold_handoff(put, target)
 
@@ -246,11 +247,12 @@ def install(target, project, project_type, mode, agent, upgrade=False):
         if (target / 'README.md').exists():
             shutil.copy2(target / 'README.md', stage / 'README.md')
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
+        validate_env = dict(env, AGENTIC_HOST_ROOT=str(target))
         for command in [
             [sys.executable, 'agentic/kit/scripts/validate_structure.py', '--write-manifests'],
             [sys.executable, 'agentic/kit/examples/runtime-demo.py'],
         ]:
-            result = subprocess.run(command, cwd=stage, env=env, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(command, cwd=stage, env=validate_env, capture_output=True, text=True, timeout=60)
             if result.returncode:
                 raise ValueError('Staged validation failed: ' + result.stderr + result.stdout)
         changed.append('agentic/MANIFEST.md')

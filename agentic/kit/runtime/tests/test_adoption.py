@@ -146,6 +146,26 @@ class AdoptionTests(unittest.TestCase):
         self.assertTrue((self.host / '.agent/runtime/route-cache.json').is_file())
         self.assertFalse((self.host / 'agentic/data/runtime').exists())
 
+    def test_upgrade_refreshes_kit_docs(self):
+        self.install()
+        readme = self.host / 'agentic/README.md'
+        readme.write_text('stale kit readme\n')
+        self.install()
+        self.assertEqual(readme.read_text(), 'stale kit readme\n')
+        self.install(upgrade=True)
+        self.assertEqual(readme.read_text(), (KIT.parent / 'README.md').read_text())
+
+    def test_host_doc_links_resolve_against_host_during_staged_validation(self):
+        self.install()
+        (self.host / 'docs').mkdir()
+        (self.host / 'docs/ARCH.md').write_text('arch\n')
+        agents = self.host / 'AGENTS.md'
+        agents.write_text(agents.read_text() + '\nSee [arch](docs/ARCH.md).\n')
+        self.assertTrue(self.install()['ok'])
+        agents.write_text(agents.read_text() + '\nSee [gone](docs/MISSING.md).\n')
+        with self.assertRaisesRegex(ValueError, 'Broken local link'):
+            self.install()
+
     def test_literal_source_path_is_validated_before_install_commit(self):
         self.install()
         source = self.host / 'agentic/kit/skills/srs-generator/SKILL.md'

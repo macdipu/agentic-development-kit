@@ -3,6 +3,7 @@
 import argparse
 import ast
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -10,6 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 AGENTIC = ROOT / 'agentic'
 KIT = AGENTIC / 'kit'
+# Set by the installer when validating a staged copy: host docs (AGENTS.md, ...) may
+# link to host files that exist in the real project but not in the stage.
+HOST_ROOT = Path(os.environ['AGENTIC_HOST_ROOT']) if os.environ.get('AGENTIC_HOST_ROOT') else None
 sys.path.insert(0, str(KIT / 'runtime/python'))
 from agentic_runtime.registry import SkillRegistry
 
@@ -100,7 +104,8 @@ def main():
                 if '://' in target or target.startswith('#'):
                     continue
                 relative = target.split('#', 1)[0]
-                if relative and not (path.parent / relative).exists():
+                host_path = HOST_ROOT / path.parent.relative_to(ROOT) / relative if HOST_ROOT else None
+                if relative and not (path.parent / relative).exists() and not (host_path and host_path.exists()):
                     raise ValueError(f'Broken local link in {name}: {target}')
     listed = re.findall(r'^- `([^`]+)`$', (AGENTIC / 'MANIFEST.md').read_text(), re.M)
     if listed != files:
