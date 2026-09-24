@@ -10,3 +10,4 @@
 - Record side-effecting tool calls.
 - Require idempotency for side-effecting operations.
 - Use human approval gates where required.
+- Commit only per [commit policy](commit-policy.md).

@@ -18,6 +18,7 @@ This file is the canonical repository-level instruction entrypoint for agentic d
 12. Use skills under `agentic/kit/skills/` as reusable specialist workflows. For implementation-stage work, pick it up through the matching domain persona under `agentic/kit/agents/` (FE, Mobile, BE, DB/Integration, QA, Security/DevOps — see `agentic/kit/agents/README.md`); a persona composes existing skills and scopes which tasks it takes, it does not replace them.
 13. Record agent start/end timing and relevant task telemetry through the harness.
 14. Preserve traceability from request -> requirements -> design -> tasks -> implementation -> QA -> release.
+15. Commit per `agentic/kit/policies/commit-policy.md`: only after a governed task finishes with checks green (`Commit-Trigger: task-finish`, one task = one commit) or when the user explicitly asks (`Commit-Trigger: user-request`). Build the message with `agentic_runtime.cli commit-message` (Conventional Commits + `Work-Item`/`Task`/`Run`/`Commit-Trigger` trailers), then `agentic_runtime.cli record-commit RUN_ID` when a run exists. `close-session` logs every commit since the previous session under `## Commits`. Never push, amend, or skip hooks without an explicit ask.
 
 ## Input modes
 

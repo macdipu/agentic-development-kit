@@ -13,7 +13,7 @@ agentic/
 │   ├── skills/                   # specialist definitions
 │   ├── workflows/                # routing per work type
 │   ├── templates/                # blank artifacts and production evidence template
-│   ├── policies/                 # default policy
+│   ├── policies/                 # default policy, commit policy
 │   ├── config/                   # permissions, commands, skills, hooks
 │   ├── examples/                 # isolated smoke and legacy delivery fixtures
 │   ├── scripts/                  # installer and validation

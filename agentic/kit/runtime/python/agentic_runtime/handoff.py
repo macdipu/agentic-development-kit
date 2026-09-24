@@ -15,12 +15,17 @@ that restriction so files stay valid input to the real agent-handoff CLI too.
 Handoff content is structured (task/completed/changed_files/tests/blockers/
 decisions/next_action) rather than one free-form summary string, so a picking-up
 agent -- or a script -- can read a specific field instead of parsing prose, and
-so a closing agent can't skip a category by writing one vague sentence.
+so a closing agent can't skip a category by writing one vague sentence. The
+Commits section is derived from git, not supplied by the caller: every commit
+since the previous session record's HEAD, tagged with its Commit-Trigger /
+Work-Item / Task trailers (see commits.py).
 """
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
+
+from agentic_runtime import commits as commit_log
 
 VALID_AGENTS = ("claude", "codex")
 
@@ -75,7 +80,7 @@ def _validate_agent(agent: str):
 def render_handoff(*, last_agent: str, operator: str, status: str, task: str, completed: str,
                     changed_files: Optional[Iterable[str]], tests: str, blockers: str,
                     decisions: str, next_action: str, git_snapshot_text: str,
-                    ts: Optional[str] = None) -> str:
+                    commits: Optional[Iterable[str]] = None, ts: Optional[str] = None) -> str:
     _validate_agent(last_agent)
     return (
         f"Last updated: {ts or _now_iso()}\n"
@@ -96,6 +101,8 @@ def render_handoff(*, last_agent: str, operator: str, status: str, task: str, co
         f"{decisions or '(none)'}\n"
         "\n## Next Action\n"
         f"{next_action}\n"
+        "\n## Commits\n"
+        f"{_bullet_list(commits)}\n"
         "\n## Git Snapshot\n"
         f"```text\n{git_snapshot_text}\n```\n"
     )
@@ -110,7 +117,8 @@ def write_handoff(repo_root, *, ts: Optional[str] = None, **fields) -> Path:
 
 def render_session(*, agent: str, operator: str, ended: str, git_snapshot_text: str, task: str,
                     completed: str, changed_files: Optional[Iterable[str]], tests: str,
-                    blockers: str, decisions: str, next_action: str) -> str:
+                    blockers: str, decisions: str, next_action: str,
+                    commits: Optional[Iterable[str]] = None) -> str:
     _validate_agent(agent)
     lines = git_snapshot_text.splitlines()
     branch = next((l.split(": ", 1)[1] for l in lines if l.startswith("Branch: ")), "")
@@ -135,6 +143,8 @@ def render_session(*, agent: str, operator: str, ended: str, git_snapshot_text: 
         f"{decisions or '(none)'}\n"
         "\n## Next Action\n"
         f"{next_action}\n"
+        "\n## Commits\n"
+        f"{_bullet_list(commits)}\n"
         "\n## Git Status\n"
         f"```text\n{git_snapshot_text}\n```\n"
     )
@@ -157,12 +167,21 @@ def close_session(repo_root, *, agent: str, task: str, completed: str, status: s
     changed_files = list(changed_files or [])
     snapshot = git_snapshot(repo_root)
     operator = git_user(repo_root)
+    commits = commit_log.format_commit_lines(commit_log.commits_since(repo_root, previous_session_head(repo_root)))
     fields = dict(task=task, completed=completed, changed_files=changed_files, tests=tests,
-                  blockers=blockers, decisions=decisions, next_action=next_action)
+                  blockers=blockers, decisions=decisions, next_action=next_action, commits=commits)
     session_path = write_session(repo_root, agent=agent, operator=operator, git_snapshot_text=snapshot, **fields)
     handoff_path = write_handoff(repo_root, last_agent=agent, operator=operator, status=status,
                                   git_snapshot_text=snapshot, **fields)
     return {"session": str(session_path), "handoff": str(handoff_path)}
+
+
+def previous_session_head(repo_root) -> Optional[str]:
+    """The commit the latest session record ended on -- the base for this session's commit log."""
+    latest = read_latest_session(repo_root) or ''
+    line = next((l for l in latest.splitlines() if l.startswith('- Recent commit: ')), '')
+    sha = line.split(': ', 1)[1].split(' ', 1)[0] if line else ''
+    return sha if sha and sha != '(unavailable)' else None
 
 
 def read_handoff(repo_root) -> Optional[str]:

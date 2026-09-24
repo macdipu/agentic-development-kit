@@ -44,7 +44,10 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \\
 `--agent`, `--status`, `--task`, and `--completed` are not -- `--status` has no
 default, so it can't silently claim `COMPLETED` for a session that didn't
 finish. Structured fields, not one free-form summary, so the next agent can
-read a specific field instead of parsing prose.
+read a specific field instead of parsing prose. A `## Commits` section is added
+from git automatically: every commit since the previous session record, tagged
+with its `Commit-Trigger` (`task-finish`/`user-request`) and `Work-Item`/`Task`
+trailers -- see `agentic/kit/policies/commit-policy.md`.
 
 This writes `.agent/HANDOFF.md` and a new `.agent/sessions/<timestamp>-{agent}.md`
 record, both git-tracked (unlike this kit's own local run store under

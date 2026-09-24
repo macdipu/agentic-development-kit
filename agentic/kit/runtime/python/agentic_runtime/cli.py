@@ -13,7 +13,7 @@ from agentic_runtime.policy import PLANNING, STAGES, WORK_TYPES
 from agentic_runtime.store import RuntimeStore
 from agentic_runtime.tools import NATIVE_TOOL_CAPABILITY, build_default_tools
 from agentic_runtime.paths import KIT, AGENTIC, REPO_ROOT, RUNS_DIR, ACTIVE_TASK_POINTER, ROUTE_CACHE_FILE
-from agentic_runtime import markers, handoff
+from agentic_runtime import markers, handoff, commits
 from agentic_runtime.routing_cache import RoutingCache, PROJECT_TYPES, cache_key, compute_kit_version
 from agentic_runtime.timing import now
 
@@ -149,6 +149,17 @@ def _cmd_close_session(args, store, orch):
                                   next_action=args.next_action)
 
 
+def _cmd_record_commit(args, store, orch):
+    run = store.get_run(args.run_id)
+    if run is None:
+        raise ValueError('Unknown run')
+    info = commits.commit_info(run.metadata['repo'], args.rev)
+    if info.get('commit_trigger') not in commits.TRIGGERS:
+        raise ValueError(f'Commit {info["sha"]} has no valid Commit-Trigger trailer; use commit-message to build it')
+    store.audit(args.run_id, 'COMMIT_RECORDED', info, now())
+    return info
+
+
 def _cmd_impact(args, store, orch):
     edges = json.loads(args.edges.read_text())
     if not isinstance(edges, dict) or not all(isinstance(v, list) for v in edges.values()):
@@ -196,7 +207,7 @@ COMMANDS = {
     'task-start': _cmd_task_start, 'call-tool': _cmd_call_tool, 'task-finish': _cmd_task_finish,
     'task-fail': _cmd_task_fail, 'guard': _cmd_guard, 'close-session': _cmd_close_session,
     'impact': _cmd_impact, 'cancel': _cmd_cancel,
-    'adjust-budget': _cmd_adjust_budget,
+    'adjust-budget': _cmd_adjust_budget, 'record-commit': _cmd_record_commit,
 }
 
 
@@ -310,6 +321,19 @@ def main(argv=None):
     close_session.add_argument('--next-action', default='', dest='next_action')
     close_session.add_argument('--status', choices=['RUNNING', 'BLOCKED', 'COMPLETED', 'CANCELLED'], required=True)
     close_session.add_argument('--repo', type=Path, default=REPO_ROOT)
+    commit_message = sub.add_parser('commit-message', help='Print a policy-conformant commit message (Conventional Commits + traceability trailers)')
+    commit_message.add_argument('--type', choices=commits.COMMIT_TYPES, required=True)
+    commit_message.add_argument('--scope', default='', help='Module/feature, e.g. auth')
+    commit_message.add_argument('--subject', required=True, help='Imperative, no trailing period')
+    commit_message.add_argument('--body', default='', help='Why the change was made')
+    commit_message.add_argument('--trigger', choices=commits.TRIGGERS, required=True)
+    commit_message.add_argument('--work-item', default='', dest='work_item', help='e.g. FEAT-12, CR-3, BUG-7')
+    commit_message.add_argument('--task', default='', help='Task id the commit closes')
+    commit_message.add_argument('--run', default='', help='Governed run id, when one is active')
+    commit_message.add_argument('--breaking', action='store_true')
+    record_commit = sub.add_parser('record-commit', help="Append a commit (with its trigger/traceability trailers) to a run's audit log")
+    record_commit.add_argument('run_id')
+    record_commit.add_argument('--rev', default='HEAD')
     args = parser.parse_args(argv)
     try:
         if args.cmd == 'production-check':
@@ -332,6 +356,12 @@ def main(argv=None):
             print(note or 'No .agent/HANDOFF.md yet.')
             if session:
                 print('\n' + session)
+            return 0
+        if args.cmd == 'commit-message':
+            sys.stdout.write(commits.render_message(
+                type=args.type, scope=args.scope, subject=args.subject, body=args.body,
+                trigger=args.trigger, work_item=args.work_item, task=args.task, run=args.run,
+                breaking=args.breaking))
             return 0
         if args.cmd == 'route-cache-get':
             print(json.dumps(_cmd_route_cache_get(args), indent=2))

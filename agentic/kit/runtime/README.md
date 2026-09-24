@@ -23,7 +23,8 @@ See the [production readiness checklist](production-readiness.md) for what organ
 | Timing | Start/end/failure/cancel/interruption events, duration for normal/failed adapters, retry count; `timing RUN_ID [--task]` queries recorded events and computed durations | Queue, approval-wait, active-vs-tool time attribution are not implemented |
 | Redaction | Best-effort structured field and string masking for context, results, and error/audit payloads | Not comprehensive DLP; tool arguments reach the trusted handler unchanged |
 | Dependency closure | `impact MODULE... --edges edges.json` expands a transitive dependency closure from a caller-supplied module graph | Not connected to automatic dependency discovery; edges must be supplied explicitly |
-| Cross-agent handoff | `pickup`/`close-session` read/write `.agent/HANDOFF.md` + `.agent/sessions/*.md` (agent-handoff compatible, git-tracked), structured by task/completed/changed_files/tests/blockers/decisions/next_action plus the git-configured operator | Separate from this runtime's own store: handoff notes are git-tracked and cross-platform (Claude/Codex/...); the run store stays local and gitignored |
+| Cross-agent handoff | `pickup`/`close-session` read/write `.agent/HANDOFF.md` + `.agent/sessions/*.md` (agent-handoff compatible, git-tracked), structured by task/completed/changed_files/tests/blockers/decisions/next_action plus the git-configured operator and a git-derived commit log | Separate from this runtime's own store: handoff notes are git-tracked and cross-platform (Claude/Codex/...); the run store stays local and gitignored |
+| Commits | `commit-message` builds a Conventional Commits message with `Work-Item`/`Task`/`Run`/`Commit-Trigger` trailers; `record-commit RUN_ID` appends a `COMMIT_RECORDED` audit event | Does not run `git commit` or decide when to commit; see [commit policy](../policies/commit-policy.md) |
 | Production | No production stage or L7 tool registration | External production integration is intentionally unsupported |
 
 The caller, adapter code, tool registrations, configuration, and database form one local trust boundary. Direct Python, shell, model-provider, or database access outside these APIs bypasses the controls. Use process isolation, authenticated approval services, least-privilege credentials, and durable infrastructure before shared autonomous execution.
@@ -241,6 +242,26 @@ This rewrites `.agent/HANDOFF.md` and appends a new
 the `Stop` hook whenever a governed task is active (never blocks `Stop`, fails
 open on error); on a hookless CLI, run `close-session` yourself before ending
 the session.
+
+Both files also get a `## Commits` section derived from git, not from the
+caller: every commit since the previous session record's HEAD (the last 20 when
+there is no usable previous record), each tagged with its `Commit-Trigger`,
+`Work-Item`, and `Task` trailers, or `[no Commit-Trigger]` for a commit made
+outside the [commit policy](../policies/commit-policy.md).
+
+## Commits
+
+```sh
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py commit-message \
+  --type fix --scope billing --subject "round tax per line item" \
+  --body "Totals drifted by a cent on multi-line invoices." \
+  --trigger task-finish --work-item BUG-7 --task T-2 --run RUN_ID | git commit -F -
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py record-commit RUN_ID
+```
+
+`commit-message` rejects unknown types/triggers, a header over 72 characters, and a
+trailing period. `record-commit` reads the commit from the run's repo and refuses
+one without a valid `Commit-Trigger` trailer. Neither command commits or pushes.
 
 ## Routing-decision cache
 

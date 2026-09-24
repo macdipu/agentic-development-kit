@@ -18,6 +18,12 @@ new work, run `python3 agentic/kit/runtime/hooks/session_start_check.py` when th
 agent platform has no SessionStart hook. Resume midflight work before starting
 another run. Unknown or damaged state requires explicit recovery.
 
+Commit only per `agentic/kit/policies/commit-policy.md`: after a governed task
+finishes with checks green, or when the user explicitly asks. Build messages
+with `agentic_runtime.cli commit-message` (Conventional Commits + Work-Item/Task/
+Run/Commit-Trigger trailers) and log them with `record-commit RUN_ID`; never
+push, amend, or skip hooks without an explicit ask.
+
 Record execution timing through the harness. Before compaction, checkpoint
 active work and update affected task/context documents with remaining work.
 
