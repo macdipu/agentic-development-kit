@@ -15,10 +15,9 @@ sys.path.insert(0, str(ROOT / 'agentic/kit/runtime/python'))
 from agentic_runtime.doctor import detect_project, diagnose
 from agentic_runtime.installation import managed_text, merge_hooks, unfinished_runs
 from agentic_runtime import handoff
-from agentic_runtime.paths import ACTIVE_TASK_POINTER_REL, STATE_DIR_REL
+from agentic_runtime.paths import ACTIVE_TASK_POINTER_REL
 
 DOCS = ['README.md', 'ADOPTION.md', 'SKILL-CATALOG.md']
-LEGACY_STATE_REL = Path('agentic/data/runtime/state')
 IGNORE = ['/.agent/runtime/**/*.lock', '/.agent/runtime/**/*.tmp', '/.agent/runtime/**/.active-task-*',
           '/.agent/runtime/logs/', '/.agent/runtime/active-task.recovered-*.json',
           '/agentic/data/artifacts/', '/agentic-backups/', '__pycache__/', '*.py[cod]']
@@ -193,19 +192,6 @@ def _rollback(target, backup, installed):
                 shutil.copy2(saved, destination)
 
 
-def _migrate_legacy_state(target):
-    """One-time move of pre-.agent run history and route cache into .agent/runtime/."""
-    legacy = target / LEGACY_STATE_REL
-    if not legacy.is_dir():
-        return
-    for path in sorted(legacy.rglob('*.json')):
-        destination = target / STATE_DIR_REL / path.relative_to(legacy)
-        if not destination.exists():
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(path), destination)
-    shutil.rmtree(legacy.parent)
-
-
 def install(target, project, project_type, mode, agent, upgrade=False):
     target = Path(target).resolve()
     if target == ROOT:
@@ -213,8 +199,7 @@ def install(target, project, project_type, mode, agent, upgrade=False):
     if target == Path(target.anchor) or target == Path.home():
         raise ValueError('Choose a project directory, not a filesystem or home root')
     if (target / 'agentic/kit').exists() and upgrade:
-        if (unfinished_runs(target) or unfinished_runs(target, LEGACY_STATE_REL / 'runs')
-                or (target / ACTIVE_TASK_POINTER_REL).exists() or (target / LEGACY_STATE_REL / 'active-task.json').exists()):
+        if unfinished_runs(target) or (target / ACTIVE_TASK_POINTER_REL).exists():
             raise ValueError('Finish or cancel governed work before upgrading pinned kit files')
     target.mkdir(parents=True, exist_ok=True)
     source = ROOT / 'agentic'
@@ -267,7 +252,6 @@ def install(target, project, project_type, mode, agent, upgrade=False):
                                         cwd=target, env=env, capture_output=True, text=True, timeout=30)
                 if result.returncode:
                     raise ValueError(result.stderr)
-            _migrate_legacy_state(target)
             report = diagnose(target)
             if not report['ok']:
                 raise ValueError('Installed doctor failed: ' + json.dumps(report))

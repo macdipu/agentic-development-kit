@@ -45,8 +45,8 @@ def install_claude_hooks(repo, template_path):
     return {'settings': str(settings), 'changed': changed}
 
 
-def unfinished_runs(root, runs_dir_rel=RUNS_DIR_REL):
-    runs_dir = Path(root) / runs_dir_rel
+def unfinished_runs(root):
+    runs_dir = Path(root) / RUNS_DIR_REL
     if not runs_dir.is_dir():
         return []
     unfinished = []

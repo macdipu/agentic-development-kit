@@ -32,8 +32,6 @@ what's committed to git. The runtime ledger lives beside them in
 `.agent/runtime/` (active-task pointer, `runs/*.json`, route cache), also
 git-tracked with repo-relative paths, so a governed run resumes on another
 machine after `git pull`. Only lock/temp files and `logs/` are gitignored.
-Upgrading a pre-`.agent/runtime` install moves `agentic/data/runtime/state/`
-there once.
 
 ## What installation does
 

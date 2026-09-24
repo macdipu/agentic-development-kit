@@ -135,17 +135,6 @@ class AdoptionTests(unittest.TestCase):
             self.install(upgrade=True)
         self.assertEqual(path.read_bytes(), original)
 
-    def test_upgrade_moves_legacy_runtime_state_into_agent_dir(self):
-        self.install(mode='local-harness')
-        legacy = self.host / 'agentic/data/runtime/state'
-        (legacy / 'runs').mkdir(parents=True)
-        (legacy / 'runs/RUN-OLD.json').write_text(json.dumps({'run': {'status': 'COMPLETED'}}))
-        (legacy / 'route-cache.json').write_text('{}')
-        self.assertTrue(self.install(mode='local-harness', upgrade=True)['ok'])
-        self.assertTrue((self.host / '.agent/runtime/runs/RUN-OLD.json').is_file())
-        self.assertTrue((self.host / '.agent/runtime/route-cache.json').is_file())
-        self.assertFalse((self.host / 'agentic/data/runtime').exists())
-
     def test_upgrade_refreshes_kit_docs(self):
         self.install()
         readme = self.host / 'agentic/README.md'
