@@ -24,8 +24,19 @@ Do not classify by request type alone. A feature can be small. A CR can be large
 
 ## Output
 
-Return:
-- classification
+The runtime reads three fields from `outputs` and will not let the run leave its
+decision stage (TECHNICAL; CONTEXT for an existing task) without them:
+- `classification`: `EPIC_STORY_TASK`, `STORY_TASK`, `TASK_ONLY`, or `EXECUTE_EXISTING_TASK`
+- `sprint_handling`: `FULL_SPRINT_PLANNING`, `ADD_TO_EXISTING_SPRINT`, `BACKLOG_ONLY`, `EXPEDITED`, or `NO_REPLAN`
+- `work_item_id`: the work item's id (its folder under `agentic/data/project-context/features/`)
+
+From them it rebuilds the route: a PLANNING stage is added for Epic/Story
+hierarchies and for sprint or backlog handling, and PLANNING cannot be left
+until the matching `EPIC.md`, `stories/STORY-*.md`, `tasks/TASK-*.md`, and sprint
+file exist. A `TASK_ONLY` or `EXECUTE_EXISTING_TASK` item with `NO_REPLAN` or
+`EXPEDITED` goes straight to implementation.
+
+Also return:
 - rationale
 - affected modules
 - dependencies

@@ -368,6 +368,8 @@ Examples:
 
 Sprint Planning is useful when work needs meaningful sequencing, multiple teams/modules, coordinated dependencies, capacity decisions, or a UAT target. It should not be forced for every request.
 
+The harness enforces the decision instead of leaving it to memory: a run cannot leave its technical stage without the `work-item-level-classifier` verdict (hierarchy, sprint handling, work item id), the verdict decides whether a PLANNING stage runs, and PLANNING cannot finish until the matching `EPIC.md`, `stories/STORY-*.md`, `tasks/TASK-*.md`, and `sprints/SPRINT-*.md` exist (see `kit/workflows/sprint-planning.md`).
+
 ---
 
 # Context-First Legacy Development

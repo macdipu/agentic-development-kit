@@ -9,7 +9,9 @@ agentic/data/project-context/
 ├── PRD.md                # whole-app/whole-project PRD, optional, human-authored only
 ├── SRD.md                # whole-app/whole-project SRD/SRS, generated + human-approved
 ├── ARCHITECTURE.md       # project-level HLD, generated + human-approved (template: project-hld.md)
+├── sprints/SPRINT-XXX.md # sprint plans (template sprint.md), written by sprint-planner
 └── features/<WORK-ITEM-ID>/   # per-feature/CR/bug artifacts, see features/README.md
+                               #   EPIC.md, stories/STORY-*.md, tasks/TASK-*.md when planned
 ```
 
 ## Project-wide vs feature-scoped docs

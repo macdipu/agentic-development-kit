@@ -403,6 +403,7 @@ def run_summary(run):
                'status': run.status, 'next_stage': nxt,
                'stage_results': {stage: r.get('status') for stage, r in results.items()},
                'active_task': meta.get('active_task'), 'scope_revision': meta.get('scope_revision', 0),
+               'planning': meta.get('planning'), 'hierarchy': meta.get('hierarchy'),
                'context_files': len((meta.get('context') or {}).get('files', {}))}
     if current.get('blocking_issues'):
         summary['blocking_issues'] = current['blocking_issues']
@@ -488,7 +489,8 @@ def main(argv=None):
     start.add_argument('--type', choices=sorted(WORK_TYPES), required=True)
     start.add_argument('--title', required=True)
     start.add_argument('--repo', type=Path, default=AGENTIC.parent)
-    start.add_argument('--planning', choices=sorted(PLANNING), default='NO_REPLAN')
+    start.add_argument('--planning', choices=sorted(PLANNING), default=None,
+                       help='Override sprint handling; normally work-item-level-classifier decides it')
     start.add_argument('--dry-run', action='store_true')
     for name in ('show', 'eligible', 'cancel'):
         sub.add_parser(name).add_argument('run_id')

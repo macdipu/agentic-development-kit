@@ -25,6 +25,6 @@ CLI below = `python3 agentic/kit/runtime/python/agentic_runtime/cli.py`. Output 
 
 - Prompt-first or document-first (FEATURE/CR/BUG/HOTFIX.md); both normalize to a canonical work item.
 - Project type is per work item: greenfield -> full lifecycle (`agentic/kit/workflows/greenfield.md`); brownfield -> context-first incremental (`agentic/kit/workflows/brownfield.md`).
-- Never pick hierarchy or Sprint Planning from request type alone: classify the minimum work level, then sprint handling. Approved tasks execute without recreating planning artifacts.
+- Never pick hierarchy or Sprint Planning from request type alone: run `work-item-level-classifier` before leaving TECHNICAL (CONTEXT for an existing task) with `classification`, `sprint_handling`, `work_item_id`; the runtime adds PLANNING when needed and requires the Epic/Story/Task/sprint files before implementation. Approved tasks execute without recreating planning artifacts.
 - Generated artifacts belong under `agentic/data/`; kit code under `agentic/kit/`. In local-harness mode the harness owns state, approvals, freshness, limits, and timing -- never substitute model judgment.
 <!-- agentic-kit:end -->

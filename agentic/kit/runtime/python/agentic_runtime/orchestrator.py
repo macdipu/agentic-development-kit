@@ -9,6 +9,7 @@ from .context import normalized_bytes, snapshot, snapshot_state
 from .contracts import SUCCESS_STATUSES, validate_result
 from .models import WorkflowRun
 from .policy import auto_approve_eligible, evaluate, workflow_route
+from . import planning as planning_rules
 from .registry import SkillRegistry, ToolRegistry
 from .security import redact_value
 from .timing import durations, now
@@ -137,18 +138,21 @@ class Orchestrator:
         run.updated_at = now()
         self.store.save_checkpoint(run, event, payload)
 
-    def start(self, project, work_type, title, dry_run=False, repo=None, planning='NO_REPLAN'):
+    def start(self, project, work_type, title, dry_run=False, repo=None, planning=None):
+        """`planning` is an explicit sprint-handling override; normally the
+        work-item-level-classifier decides it at the decision stage."""
         if self.loaded_config_hash != self._config_hash():
             raise ValueError('Configuration changed; reload the orchestrator')
         if not project.strip() or not title.strip():
             raise ValueError('Project and title are required')
-        route = workflow_route(work_type, planning, self.policy['require_uat_approval'])
+        route = workflow_route(work_type, planning or 'NO_REPLAN', self.policy['require_uat_approval'])
         root = Path(repo or self.kit_dir.parent.parent).resolve()
         if not root.is_dir():
             raise ValueError('Project root must exist')
         ts = now()
         run = WorkflowRun('RUN-' + uuid.uuid4().hex.upper(), project, work_type, title, status='RUNNING', dry_run=dry_run, created_at=ts, updated_at=ts)
-        run.metadata = {'runtime_version': 2, 'repo': str(root), 'route': route, 'planning': planning, 'scope_revision': 0,
+        run.metadata = {'runtime_version': 2, 'repo': str(root), 'route': route, 'planning': planning or 'UNDECIDED',
+                        'planning_override': planning, 'scope_revision': 0,
                         'config_hash': self._config_hash(), 'skill_pins': {k: v['revision'] for k, v in self.registry.discover().items()},
                         'results': {}, 'attempts': {}, 'active_task': None}
         with self.store.transaction():
@@ -189,6 +193,13 @@ class Orchestrator:
             self._current_config(run)
             if run.metadata['active_task']:
                 raise ValueError('Task is still active')
+            if run.stage == planning_rules.decision_stage(run.work_type):
+                self._decide_route(run)
+            if run.stage == 'PLANNING':
+                missing = planning_rules.missing_artifacts(run.metadata['repo'], run.metadata.get('work_item_id', ''),
+                                                           run.metadata.get('hierarchy'), run.metadata.get('planning'))
+                if missing:
+                    raise ValueError('Planning is not done; write: ' + '; '.join(missing))
             route = run.metadata['route']
             index = route.index(run.stage)
             if index + 1 >= len(route) or next_stage != route[index + 1]:
@@ -214,6 +225,19 @@ class Orchestrator:
         if run.status == 'COMPLETED':
             self.store.compact(run_id)
         return run
+
+    def _decide_route(self, run):
+        """Rebuild the rest of the route from the classifier's verdict (in memory; saved
+        only if the transition succeeds)."""
+        stages = [s for s in run.metadata['route'][:run.metadata['route'].index(run.stage) + 1]]
+        result = planning_rules.classification(run.metadata.get('skill_results', {}), stages)
+        if result is None:
+            raise ValueError(f'Leaving {run.stage} needs a {planning_rules.CLASSIFIER} result at this or an '
+                             f'earlier stage, with outputs.classification, outputs.sprint_handling and '
+                             f'outputs.work_item_id; it decides whether Epic/Story/sprint planning runs')
+        hierarchy, handling, work_item_id = planning_rules.verdict(result, run.metadata.get('planning_override'))
+        route = workflow_route(run.work_type, handling, self.policy['require_uat_approval'], hierarchy)
+        run.metadata.update({'route': route, 'planning': handling, 'hierarchy': hierarchy, 'work_item_id': work_item_id})
 
     def approve(self, run_id, gate, approver, decision='APPROVED', comment=''):
         with self.store.transaction():
@@ -275,6 +299,8 @@ class Orchestrator:
             run.metadata['results'] = {k: v for k, v in run.metadata['results'].items() if k == 'INTAKE'}
             run.metadata['skill_results'] = {k: v for k, v in run.metadata.get('skill_results', {}).items() if k == 'INTAKE'}
             run.metadata.pop('context', None)
+            for key in ('hierarchy', 'work_item_id'):  # re-decided for the new scope
+                run.metadata.pop(key, None)
             run.stage, run.status = 'CONTEXT', 'RUNNING'
             self._save(run, 'SCOPE_REOPENED', {'reason': reason})
         return run

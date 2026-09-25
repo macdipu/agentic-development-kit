@@ -47,7 +47,12 @@ class HarnessCase(unittest.TestCase):
         self.orch.record_context(self.run_id, ['scope.md'])
         self.result('baseline-verifier')
 
+    def classify(self, classification='EXECUTE_EXISTING_TASK', sprint_handling='NO_REPLAN', work_item_id='FIX-1'):
+        return self.orch.execute(self.run_id, 'work-item-level-classifier', lambda c, t: ready(
+            classification=classification, sprint_handling=sprint_handling, work_item_id=work_item_id))
+
     def implementation(self, dry_run=False):
         self.context('existing_task', dry_run)
+        self.classify()
         self.orch.approve(self.run_id, 'technical', 'synthetic fixture reviewer')
         self.orch.transition(self.run_id, 'IMPLEMENTATION')

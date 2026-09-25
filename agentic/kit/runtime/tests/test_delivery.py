@@ -11,4 +11,4 @@ class DeliveryTests(HarnessCase):
         self.assertEqual(report['status'], 'COMPLETED')
         self.assertTrue(report['real_checks'])
         self.assertFalse(report['deployment'])
-        self.assertEqual(len(report['timing']), 6)
+        self.assertEqual(len(report['timing']), 7)  # + work-item-level-classifier

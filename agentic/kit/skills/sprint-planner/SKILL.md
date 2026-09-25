@@ -49,7 +49,15 @@ When the work-item-level classification is `EPIC_STORY_TASK`, write the epic at
 (template: `agentic/kit/templates/story.md`), linked from the epic's `## Stories`
 section. When the classification is `STORY_TASK`, write only the story file(s)
 (no `EPIC.md`) with `## Parent Epic` set to `NONE`. When it is `TASK_ONLY`, write
-neither — task-breakdown-agent's task files stand alone. Do not create an epic or
+neither — task-breakdown-agent's task files stand alone.
+
+When sprint handling is `FULL_SPRINT_PLANNING`, write the sprint at
+`agentic/data/project-context/sprints/SPRINT-XXX.md` (template:
+`agentic/kit/templates/sprint.md`); for `ADD_TO_EXISTING_SPRINT`, add the work
+item to the current sprint's file under `## Changes`. `BACKLOG_ONLY` writes no
+sprint file. The runtime checks these files before the run leaves PLANNING, and
+the sprint stays proposed until a human commits it (record who, in
+`## Commitment`). Do not create an epic or
 story file merely because this skill ran; only when the classification calls for
 that hierarchy depth. task-breakdown-agent still owns writing
 `tasks/TASK-XXX.md`; reference the relevant `STORY-XXX` id in a task's scope/

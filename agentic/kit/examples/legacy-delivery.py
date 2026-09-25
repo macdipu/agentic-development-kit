@@ -39,6 +39,9 @@ def demonstrate():
                 raise RuntimeError('Legacy fixture must reproduce its known defect')
             return result('test_price.py', baseline_failure=check['stderr'], existing_behavior='Shipping charged per item')
         orch.execute(run_id, 'test-baseline-agent', baseline)
+        # The classifier's verdict decides whether planning (Epic/Story/sprint) runs: here none.
+        orch.execute(run_id, 'work-item-level-classifier', lambda c, t: result(
+            'test_price.py', classification='EXECUTE_EXISTING_TASK', sprint_handling='NO_REPLAN', work_item_id='BUG-1'))
         orch.approve(run_id, 'technical', 'synthetic fixture reviewer', comment='Test fixture only; not human authorization')
         orch.transition(run_id, 'IMPLEMENTATION')
         def implement(context, call):

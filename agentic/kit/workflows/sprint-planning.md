@@ -69,6 +69,15 @@ verdict with nothing on disk:
 | `STORY_TASK` | `features/<id>/stories/STORY-XXX.md` (Parent Epic: `NONE`) + `features/<id>/tasks/TASK-XXX.md` | `templates/story.md`, `templates/task.md` |
 | `TASK_ONLY` | `features/<id>/tasks/TASK-XXX.md` only | `templates/task.md` |
 | `EXECUTE_EXISTING_TASK` | none — reuse what already exists | n/a |
+| sprint handling `FULL_SPRINT_PLANNING` / `ADD_TO_EXISTING_SPRINT` | `sprints/SPRINT-XXX.md` listing the work item id (new sprint, or added to the current one) | `templates/sprint.md` |
+
+**Enforced by the runtime** (`runtime/python/agentic_runtime/planning.py`): the run
+cannot leave its decision stage (TECHNICAL; CONTEXT for an existing task) without a
+`work-item-level-classifier` result carrying `classification`, `sprint_handling`,
+and `work_item_id`. The route is rebuilt from that verdict (PLANNING added for
+`EPIC_STORY_TASK`/`STORY_TASK` and for sprint/backlog handling), and PLANNING cannot
+be left until the files in this table exist. Paths above are relative to
+`agentic/data/project-context/`.
 
 sprint-planner writes `EPIC.md`/`STORY-XXX.md`; task-breakdown-agent still writes
 `TASK-XXX.md` regardless of level, referencing its parent `STORY-XXX` id when one

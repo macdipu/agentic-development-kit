@@ -71,7 +71,8 @@ class RuntimeTests(HarnessCase):
         self.result('prompt-intake-adapter')
         self.orch.transition(self.run_id, 'CONTEXT')
         self.orch.record_context(self.run_id, list(scope or ['scope.md']))
-        self.orch.execute(self.run_id, 'work-item-level-classifier', lambda c, t: ready(classification=classification))
+        self.orch.execute(self.run_id, 'work-item-level-classifier', lambda c, t: ready(
+            classification=classification, sprint_handling='NO_REPLAN', work_item_id='FIX-1'))
         self.orch.execute(self.run_id, verifier, lambda c, t: ready(verdict=verdict))
 
     def test_auto_approve_accepts_task_only_single_file_technical_ready(self):

@@ -12,7 +12,10 @@ class PolicyDecision:
     reasons: list
 
 
-def workflow_route(work_type, planning="NO_REPLAN", require_uat=False):
+def workflow_route(work_type, planning="NO_REPLAN", require_uat=False, hierarchy=None):
+    """Stages for a run. PLANNING is included when sprint handling needs it or when
+    the hierarchy has stories/epics to write (see planning.py); both are known only
+    after classification, when the orchestrator rebuilds the route."""
     if work_type not in WORK_TYPES or planning not in PLANNING:
         raise ValueError("Unknown work type or sprint handling")
     route = ["INTAKE", "CONTEXT"]
@@ -24,7 +27,8 @@ def workflow_route(work_type, planning="NO_REPLAN", require_uat=False):
         route += ["REQUIREMENTS", "TECHNICAL"]
     elif work_type != "existing_task":
         route += ["IMPACT", "TECHNICAL"]
-    if planning in {"FULL_SPRINT_PLANNING", "ADD_TO_EXISTING_SPRINT", "BACKLOG_ONLY"}:
+    if planning in {"FULL_SPRINT_PLANNING", "ADD_TO_EXISTING_SPRINT", "BACKLOG_ONLY"} \
+            or hierarchy in {"EPIC_STORY_TASK", "STORY_TASK"}:
         route += ["PLANNING"]
     if planning == "BACKLOG_ONLY":
         return route + ["COMPLETED"]
