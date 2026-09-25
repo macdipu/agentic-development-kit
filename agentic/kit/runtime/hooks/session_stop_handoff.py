@@ -3,15 +3,15 @@
 
 Wired via .claude/settings.json (event Stop, matcher "*" -- fires whenever Claude
 finishes responding). Only acts when a governed task is active
-(.agent/runtime/active-task.json), same convention as
+(.agent/local/active-task.json), same convention as
 pretooluse_gate.py/precompact_checkpoint.py -- a session with no governed work
 in flight leaves `.agent/` untouched, so casual turns don't spam it with files.
 
-When a task is active, writes `.agent/HANDOFF.md` + a new `.agent/sessions/*.md`
-entry (git-tracked, format compatible with github.com/ishipu/agent-handoff), with a
-Runtime section summarizing the run's ledger, so a
-different agent platform (or a different machine, after `git pull`) can pick up
-this run's state. One record per Claude session (keyed by the hook payload's
+When a task is active, writes `.agent/HANDOFF.md` + a `.agent/sessions/*.md`
+entry (format compatible with github.com/ishipu/agent-handoff), with a Runtime
+section summarizing the run's ledger. The files are committed with the project
+(next task-end state commit, `cli.py commit`, or `cli.py handoff`), so a
+different agent platform or machine picks up this run's state after `git pull`. One record per Claude session (keyed by the hook payload's
 session_id), rewritten on each Stop rather than one new file per reply. Never
 blocks Stop: any error is reported, not enforced.
 """
@@ -48,12 +48,13 @@ def _close_active_run(session_id=None):
         blockers='Task was still active when Claude stopped.' if task else '',
         next_action=next_action, store=store, run_id=run.run_id, session_id=session_id,
     )
-    return f"Wrote handoff notes for run {run.run_id} ({result['handoff']})."
+    return (f"Wrote handoff notes for run {run.run_id} ({result['handoff']}). Before switching machines: "
+            f"`agentic_runtime.cli handoff`.")
 
 
 def main():
     try:
-        payload = json.loads(sys.stdin.read() or '{}')
+        payload = json.loads(sys.stdin.buffer.read().decode('utf-8', 'replace') or '{}')
         note = _close_active_run(payload.get('session_id'))
     except Exception as exc:
         note = f'Could not write handoff notes (fail open): {exc}'

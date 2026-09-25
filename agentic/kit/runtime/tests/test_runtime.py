@@ -31,7 +31,7 @@ class RuntimeTests(HarnessCase):
 
     def test_stale_and_deleted_context_rejected(self):
         self.context()
-        (self.root / 'scope.md').write_text('Changed outside task')
+        (self.root / 'scope.md').write_text('Changed outside task', encoding='utf-8', newline='\n')
         with self.assertRaisesRegex(ValueError, 'STALE'):
             self.orch.transition(self.run_id, 'REVIEW')
         (self.root / 'scope.md').unlink()
@@ -51,7 +51,7 @@ class RuntimeTests(HarnessCase):
         self.orch.transition(self.run_id, 'TECHNICAL')
         self.result('agentic-sdlc-orchestrator')
         self.orch.approve(self.run_id, 'technical', 'fixture')
-        (self.root / 'scope.md').write_text('Updated fixture scope\n')
+        (self.root / 'scope.md').write_text('Updated fixture scope\n', encoding='utf-8', newline='\n')
         self.orch.record_context(self.run_id, ['scope.md'])
         run = self.store.get_run(self.run_id)
         self.assertNotIn('TECHNICAL', run.metadata['results'])
@@ -62,46 +62,55 @@ class RuntimeTests(HarnessCase):
         self.context('new_feature')
         self.orch.transition(self.run_id, 'REQUIREMENTS')
         self.result('agentic-sdlc-orchestrator')
-        (self.root / 'scope.md').write_text('Changed again\n')
+        (self.root / 'scope.md').write_text('Changed again\n', encoding='utf-8', newline='\n')
         with self.assertRaisesRegex(ValueError, 'reopen the run'):
             self.orch.record_context(self.run_id, ['scope.md'])
 
-    def test_auto_approve_accepts_task_only_single_file_technical_ready(self):
+    def _auto_candidate(self, *scope, classification='TASK_ONLY', verdict='TECHNICAL_READY', verifier='technical-readiness-verifier'):
         self.start('existing_task')
         self.result('prompt-intake-adapter')
         self.orch.transition(self.run_id, 'CONTEXT')
-        self.orch.record_context(self.run_id, ['scope.md'])
-        self.orch.execute(self.run_id, 'baseline-verifier',
-                           lambda c, t: ready(classification='TASK_ONLY', verdict='TECHNICAL_READY'))
+        self.orch.record_context(self.run_id, list(scope or ['scope.md']))
+        self.orch.execute(self.run_id, 'work-item-level-classifier', lambda c, t: ready(classification=classification))
+        self.orch.execute(self.run_id, verifier, lambda c, t: ready(verdict=verdict))
+
+    def test_auto_approve_accepts_task_only_single_file_technical_ready(self):
+        self._auto_candidate()
         self.orch.auto_approve(self.run_id, 'technical', 'single-file task-only fix; verifier says ready')
         self.assertTrue(self.store.has_approval(self.run_id, 'technical'))
         approvals = self.store._view(self.run_id)['approvals']
         self.assertEqual(approvals[-1]['approver'], 'runtime:auto')
         self.orch.transition(self.run_id, 'IMPLEMENTATION')
 
+    def test_auto_approve_survives_later_result_at_same_stage(self):
+        # Both verdicts are recorded at CONTEXT; the second result must not erase the first.
+        self._auto_candidate()
+        run = self.store.get_run(self.run_id)
+        self.assertEqual(set(run.metadata['skill_results']['CONTEXT']),
+                         {'work-item-level-classifier', 'technical-readiness-verifier'})
+        self.assertEqual(run.metadata['results']['CONTEXT']['skill'], 'technical-readiness-verifier')
+        self.orch.auto_approve(self.run_id, 'technical', 'reason')
+
     def test_auto_approve_rejects_missing_task_only_classification(self):
-        self.start('existing_task')
-        self.result('prompt-intake-adapter')
-        self.orch.transition(self.run_id, 'CONTEXT')
-        self.orch.record_context(self.run_id, ['scope.md'])
-        self.orch.execute(self.run_id, 'baseline-verifier', lambda c, t: ready(verdict='TECHNICAL_READY'))
+        self._auto_candidate(classification='STORY_TASK')
+        with self.assertRaisesRegex(ValueError, 'Not eligible for auto-approval'):
+            self.orch.auto_approve(self.run_id, 'technical', 'reason')
+
+    def test_auto_approve_rejects_verdict_from_another_skill(self):
+        self._auto_candidate(verifier='baseline-verifier')
         with self.assertRaisesRegex(ValueError, 'Not eligible for auto-approval'):
             self.orch.auto_approve(self.run_id, 'technical', 'reason')
 
     def test_auto_approve_rejects_multi_file_scope(self):
-        (self.root / 'scope2.md').write_text('Second fixture scope\n')
-        self.start('existing_task')
-        self.result('prompt-intake-adapter')
-        self.orch.transition(self.run_id, 'CONTEXT')
-        self.orch.record_context(self.run_id, ['scope.md', 'scope2.md'])
-        self.orch.execute(self.run_id, 'baseline-verifier',
-                           lambda c, t: ready(classification='TASK_ONLY', verdict='TECHNICAL_READY'))
+        (self.root / 'scope2.md').write_text('Second fixture scope\n', encoding='utf-8', newline='\n')
+        self._auto_candidate('scope.md', 'scope2.md')
         with self.assertRaisesRegex(ValueError, 'Not eligible for auto-approval'):
             self.orch.auto_approve(self.run_id, 'technical', 'reason')
 
     def test_auto_approve_gate_is_never_applicable_to_release_or_uat(self):
-        evidence = {'QA': {'status': 'READY', 'outputs': {'classification': 'TASK_ONLY', 'verdict': 'TECHNICAL_READY'}},
-                     'UAT': {'status': 'READY', 'outputs': {'classification': 'TASK_ONLY', 'verdict': 'TECHNICAL_READY'}}}
+        evidence = {'QA': {'work-item-level-classifier': {'status': 'READY', 'outputs': {'classification': 'TASK_ONLY'}},
+                           'technical-readiness-verifier': {'status': 'READY', 'outputs': {'verdict': 'TECHNICAL_READY'}}}}
+        self.assertTrue(auto_approve_eligible('technical', evidence, {'a': 'hash'}))
         self.assertFalse(auto_approve_eligible('release', evidence, {'a': 'hash'}))
         self.assertFalse(auto_approve_eligible('uat', evidence, {'a': 'hash'}))
 
@@ -119,7 +128,7 @@ class RuntimeTests(HarnessCase):
 
     def test_search_does_not_read_external_symlinks(self):
         outside = self.root.parent / (self.root.name + '-outside.txt')
-        outside.write_text('PRIVATE_SENTINEL')
+        outside.write_text('PRIVATE_SENTINEL', encoding='utf-8', newline='\n')
         self.addCleanup(lambda: outside.unlink(missing_ok=True))
         (self.root / 'external.txt').symlink_to(outside)
         self.start()
@@ -248,7 +257,8 @@ class RuntimeTests(HarnessCase):
         self.start()
         before = self.store.get_run(self.run_id).to_dict()
         count = len(self.store._view(self.run_id).get('audit_events', []))
-        with patch.object(self.store, 'checkpoint', side_effect=OSError('fixture disk failure')):
+        # The transaction's single event write fails: nothing of it may persist.
+        with patch.object(self.store, '_write_event', side_effect=OSError('fixture disk failure')):
             with self.assertRaises(OSError):
                 self.orch.start_task(self.run_id, 'prompt-intake-adapter')
         self.assertEqual(self.store.get_run(self.run_id).to_dict(), before)
@@ -258,19 +268,19 @@ class RuntimeTests(HarnessCase):
     def test_config_and_skill_pins_reject_changes(self):
         self.start()
         path = self.kit / 'skills/prompt-intake-adapter/SKILL.md'
-        path.write_text(path.read_text() + '\nChanged fixture\n')
+        path.write_text(path.read_text(encoding='utf-8') + '\nChanged fixture\n', encoding='utf-8', newline='\n')
         with self.assertRaisesRegex(ValueError, 'Pinned'):
             self.result('prompt-intake-adapter')
         path = self.kit / 'config/permissions.json'
-        path.write_text(path.read_text() + '\n')
+        path.write_text(path.read_text(encoding='utf-8') + '\n', encoding='utf-8', newline='\n')
         with self.assertRaisesRegex(ValueError, 'Configuration changed'):
             self.result('prompt-intake-adapter')
 
     def test_uat_requires_explicit_current_approval(self):
         policy_path = self.kit / 'config/platform.json'
-        policy = json.loads(policy_path.read_text())
+        policy = json.loads(policy_path.read_text(encoding='utf-8'))
         policy['require_uat_approval'] = True
-        policy_path.write_text(json.dumps(policy))
+        policy_path.write_text(json.dumps(policy), encoding='utf-8', newline='\n')
         self.orch = type(self.orch)(self.store, self.kit, self.tools)
         self.implementation()
         self.result('implementation-agent')
@@ -289,3 +299,20 @@ class RuntimeTests(HarnessCase):
         self.orch.approve(self.run_id, 'release', 'synthetic reviewer', 'REVOKED')
         with self.assertRaisesRegex(ValueError, 'release'):
             self.orch.transition(self.run_id, 'COMPLETED')
+
+
+class CompactionTests(HarnessCase):
+    def test_terminal_run_keeps_audit_but_drops_resume_only_state(self):
+        self.context()
+        task, _ = self.orch.start_task(self.run_id, 'baseline-verifier')
+        self.orch.call_tool(self.run_id, task['id'], 'read_file', {'path': 'scope.md'})
+        self.orch.finish_task(self.run_id, task['id'], ready())
+        before = self.store.ledger(self.run_id)
+        self.assertGreater(len(before['checkpoints']), 2)
+        self.orch.cancel(self.run_id)
+        after = self.store.ledger(self.run_id)
+        self.assertEqual(len(after['checkpoints']), 2)
+        self.assertEqual(after['compacted_checkpoints'], len(before['checkpoints']) + 1 - 2)
+        self.assertGreaterEqual(len(after['audit_events']), len(before['audit_events']))
+        self.assertTrue(all('result' not in c for c in after['tool_calls'].values()))
+        self.assertTrue(all('request_hash' in c for c in after['tool_calls'].values()))

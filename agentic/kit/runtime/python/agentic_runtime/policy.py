@@ -45,17 +45,23 @@ def evaluate(stage, approvals):
 AUTO_APPROVE_GATES = {"technical"}
 
 
-def auto_approve_eligible(gate, results, context_files):
-    """True only when all three already hold on recorded evidence:
-      - work-item-level-classifier classified the item TASK_ONLY
+def auto_approve_eligible(gate, skill_results, context_files):
+    """True only when all three already hold on recorded, skill-attributed evidence:
+      - work-item-level-classifier's own result classified the item TASK_ONLY
       - the reviewed scope is exactly one file (no diff exists yet pre-implementation,
         so file count is the only concrete "how small is this" signal available here)
-      - technical-readiness-verifier's own verdict is TECHNICAL_READY
+      - technical-readiness-verifier's own result says TECHNICAL_READY
+    `skill_results` maps stage -> skill -> result, so another skill claiming either
+    verdict does not count.
     """
     if gate not in AUTO_APPROVE_GATES:
         return False
     if len(context_files or {}) != 1:
         return False
-    outputs = [r.get("outputs", {}) for r in (results or {}).values() if isinstance(r, dict)]
-    return (any(o.get("classification") == "TASK_ONLY" for o in outputs)
-            and any(o.get("verdict") == "TECHNICAL_READY" for o in outputs))
+    def outputs_of(skill):
+        for by_skill in (skill_results or {}).values():
+            result = by_skill.get(skill) if isinstance(by_skill, dict) else None
+            if isinstance(result, dict) and result.get("status") in {"READY", "PREVIEW_READY"}:
+                yield result.get("outputs", {})
+    return (any(o.get("classification") == "TASK_ONLY" for o in outputs_of("work-item-level-classifier"))
+            and any(o.get("verdict") == "TECHNICAL_READY" for o in outputs_of("technical-readiness-verifier")))

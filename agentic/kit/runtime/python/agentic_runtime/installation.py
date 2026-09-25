@@ -49,23 +49,26 @@ def merge_hooks(existing, template):
 
 def install_claude_hooks(repo, template_path):
     settings = Path(repo) / '.claude/settings.json'
-    current = json.loads(settings.read_text()) if settings.exists() else {}
-    merged = merge_hooks(current, json.loads(Path(template_path).read_text()))
+    current = json.loads(settings.read_text(encoding='utf-8')) if settings.exists() else {}
+    merged = merge_hooks(current, json.loads(Path(template_path).read_text(encoding='utf-8')))
     changed = merged != current
     if changed:
         settings.parent.mkdir(parents=True, exist_ok=True)
-        settings.write_text(json.dumps(merged, indent=2) + '\n')
+        settings.write_text(json.dumps(merged, indent=2) + '\n', encoding='utf-8', newline='\n')
     return {'settings': str(settings), 'changed': changed}
 
 
 def unfinished_runs(root):
-    runs_dir = Path(root) / RUNS_DIR_REL
-    if not runs_dir.is_dir():
-        return []
+    from .paths import LEGACY_RUNS_DIR_REL
+    from .store import RuntimeStore
     unfinished = []
-    for path in runs_dir.glob('*.json'):
+    runs_dir = Path(root) / RUNS_DIR_REL
+    if runs_dir.is_dir():
+        unfinished += [r['run_id'] for r in RuntimeStore(str(runs_dir)).list_runs() if r.get('status') in ('RUNNING', 'BLOCKED')]
+    legacy = Path(root) / LEGACY_RUNS_DIR_REL
+    for path in legacy.glob('*.json') if legacy.is_dir() else []:
         try:
-            run = json.loads(path.read_text()).get('run')
+            run = json.loads(path.read_text(encoding='utf-8')).get('run')
         except (OSError, ValueError):
             continue
         if run and run.get('status') in ('RUNNING', 'BLOCKED'):

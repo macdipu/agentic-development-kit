@@ -5,7 +5,7 @@ Messages are Conventional Commits plus git trailers that carry traceability
 `Commit-Trigger: task-finish` (one commit per finished task, checks green) or
 `Commit-Trigger: user-request` (the user explicitly asked). Because the trigger
 lives in the commit itself, the session log is derived from git alone and stays
-readable on any platform after `git pull`.
+readable on any platform and machine.
 """
 import re
 import subprocess
@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import List, Optional
 
 COMMIT_TYPES = ('feat', 'fix', 'refactor', 'perf', 'test', 'docs', 'build', 'ci', 'chore', 'revert', 'style')
-TRIGGERS = ('task-finish', 'user-request')
+# task-finish / user-request: code commits (commit policy). agent-state: the runtime's
+# own state-only commit at task end. handoff: work in progress committed to switch machines.
+TRIGGERS = ('task-finish', 'user-request', 'agent-state', 'handoff')
 MAX_HEADER = 72
 TRAILER_KEYS = ('Work-Item', 'Task', 'Run', 'Commit-Trigger')
 _SCOPE = re.compile(r'^[a-z0-9][a-z0-9._/-]*$')
@@ -21,8 +23,15 @@ _FIELD_SEP = '\x1f'
 _RECORD_SEP = '\x1e'
 
 
+_TRAILER = re.compile(r'^[A-Za-z][A-Za-z0-9-]*: \S.*$')
+
+
 def render_message(*, type: str, subject: str, trigger: str, scope: str = '', body: str = '',
-                   work_item: str = '', task: str = '', run: str = '', breaking: bool = False) -> str:
+                   work_item: str = '', task: str = '', run: str = '', breaking: bool = False,
+                   extra_trailers: Optional[List[str]] = None) -> str:
+    """Policy-conformant message. `extra_trailers` (e.g. platform attribution such as
+    `Co-Authored-By: ...`) join the same trailer block after the traceability trailers --
+    a blank line between them would split the block and hide Commit-Trigger from git."""
     if type not in COMMIT_TYPES:
         raise ValueError(f'type must be one of {COMMIT_TYPES}, got {type!r}')
     if trigger not in TRIGGERS:
@@ -40,6 +49,13 @@ def render_message(*, type: str, subject: str, trigger: str, scope: str = '', bo
     trailers = [f'{key}: {value.strip()}' for key, value in
                 (('Work-Item', work_item), ('Task', task), ('Run', run), ('Commit-Trigger', trigger))
                 if value.strip()]
+    for extra in extra_trailers or []:
+        extra = extra.strip()
+        if not _TRAILER.match(extra) or '\n' in extra:
+            raise ValueError(f'trailer must be one "Key: value" line, got {extra!r}')
+        if extra.split(':', 1)[0] in TRAILER_KEYS:
+            raise ValueError(f'use the dedicated option for the {extra.split(":", 1)[0]} trailer')
+        trailers.append(extra)
     parts = [header]
     if body.strip():
         parts.append(body.strip())
@@ -47,8 +63,42 @@ def render_message(*, type: str, subject: str, trigger: str, scope: str = '', bo
     return '\n\n'.join(parts) + '\n'
 
 
+def commit(repo_root, message: str, paths: Optional[List[str]] = None, include_state: bool = True) -> dict:
+    """Stage exactly `paths` (when given), then `git commit -F <file>` with an already
+    validated message. Nothing reaches git until the message is valid, and git's own
+    failure (hooks, nothing staged) is surfaced instead of committing error text.
+    Pending agent state (.agent/state, .agent/sessions) joins the task's commit, so
+    the ledger travels with the code it describes."""
+    import tempfile
+    root = Path(repo_root)
+    def git(*args, timeout=120):
+        return subprocess.run(['git', *args], cwd=root, capture_output=True, text=True,
+                              timeout=timeout, encoding='utf-8', errors='replace')
+    if paths:
+        added = git('add', '--', *paths)
+        if added.returncode:
+            raise ValueError('git add failed: ' + (added.stderr or added.stdout).strip())
+    if git('diff', '--cached', '--quiet').returncode == 0:
+        raise ValueError('Nothing staged to commit; pass --path for the task\'s files')
+    if include_state:
+        state = [p for p in ('.agent/state', '.agent/sessions') if (root / p).exists()]
+        if state:
+            git('add', '-A', '--', *state)
+    handle = tempfile.NamedTemporaryFile('w', suffix='.commitmsg', delete=False, encoding='utf-8', newline='\n')
+    try:
+        with handle:
+            handle.write(message)
+        # Hooks run; never --no-verify (commit policy). Hooks may be slow: generous timeout.
+        result = git('commit', '-F', handle.name, timeout=600)
+    finally:
+        Path(handle.name).unlink(missing_ok=True)
+    if result.returncode:
+        raise ValueError('git commit failed: ' + (result.stderr or result.stdout).strip())
+    return commit_info(root, 'HEAD')
+
+
 def _git(repo_root, *args) -> Optional[str]:
-    result = subprocess.run(['git', *args], cwd=Path(repo_root), capture_output=True, text=True, timeout=10)
+    result = subprocess.run(['git', *args], cwd=Path(repo_root), capture_output=True, text=True, timeout=10, encoding='utf-8', errors='replace')
     return result.stdout if result.returncode == 0 else None
 
 

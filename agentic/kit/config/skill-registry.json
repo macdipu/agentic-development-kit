@@ -85,9 +85,11 @@
       "TECHNICAL"
     ],
     "technical-readiness-verifier": [
+      "CONTEXT",
       "TECHNICAL"
     ],
     "work-item-level-classifier": [
+      "CONTEXT",
       "TECHNICAL",
       "PLANNING"
     ],

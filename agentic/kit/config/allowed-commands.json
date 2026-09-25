@@ -29,43 +29,15 @@
     },
     {
       "argv": [
-        "mvn",
-        "-B",
-        "-f",
-        "backend/pom.xml",
-        "verify"
-      ],
-      "permission": "run_check"
-    },
-    {
-      "argv": [
-        "sh",
-        "scripts/verify-platform.sh"
-      ],
-      "permission": "run_check"
-    },
-    {
-      "argv": [
-        "sh",
-        "scripts/verify-flutter.sh"
-      ],
-      "permission": "run_check"
-    },
-    {
-      "argv": [
         "python3",
-        "scripts/check-contracts.py"
+        "agentic/kit/scripts/validate_structure.py"
       ],
       "permission": "run_check"
     },
     {
       "argv": [
-        "docker",
-        "compose",
-        "-f",
-        "infra/docker/compose.yaml",
-        "config",
-        "--quiet"
+        "sh",
+        "agentic/kit/scripts/validate-kit.sh"
       ],
       "permission": "run_check"
     }

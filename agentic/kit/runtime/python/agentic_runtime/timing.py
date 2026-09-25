@@ -30,6 +30,7 @@ def durations(events):
                 "run_id": event["run_id"], "task": event["task"], "event": event["event"],
                 "started_at": start_ts.isoformat(), "ended_at": event["ts"],
                 "duration_ms": (end_ts - start_ts).total_seconds() * 1000,
+                "post_hoc": bool((event.get("metadata") or {}).get("post_hoc")),
             })
     result.extend({"run_id": run_id, "task": task, "event": "PENDING", "started_at": ts, "ended_at": None, "duration_ms": None}
                   for (run_id, task), ts in started.items())

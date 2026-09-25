@@ -2,9 +2,9 @@
 .idea/
 __pycache__/
 *.py[cod]
-/.agent/runtime/**/*.lock
-/.agent/runtime/**/*.tmp
-/.agent/runtime/**/.active-task-*
-/.agent/runtime/logs/
-/.agent/runtime/active-task.recovered-*.json
 /agentic/data/artifacts/
+/.agent/local/
+/.agent/HANDOFF.md
+/.agent/state/**/.lock
+/.agent/state/**/.cache.json
+/.agent/state/**/*.tmp

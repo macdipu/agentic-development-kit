@@ -1,10 +1,11 @@
 import hashlib
+import inspect
 import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .context import snapshot, snapshot_state
+from .context import normalized_bytes, snapshot, snapshot_state
 from .contracts import SUCCESS_STATUSES, validate_result
 from .models import WorkflowRun
 from .policy import auto_approve_eligible, evaluate, workflow_route
@@ -42,10 +43,10 @@ class Orchestrator:
         self.kit_dir = Path(kit_dir) if kit_dir else Path(__file__).resolve().parents[3]
         self.registry = SkillRegistry(self.kit_dir / 'skills')
         self.tools = tools or ToolRegistry()
-        self.policy = json.loads((self.kit_dir / 'config/platform.json').read_text())
-        self.capabilities = json.loads((self.kit_dir / 'config/capabilities.json').read_text())['defaults']
-        self.permissions = json.loads((self.kit_dir / 'config/permissions.json').read_text())
-        self.allowed_commands = json.loads((self.kit_dir / 'config/allowed-commands.json').read_text())['commands']
+        self.policy = json.loads((self.kit_dir / 'config/platform.json').read_text(encoding='utf-8'))
+        self.capabilities = json.loads((self.kit_dir / 'config/capabilities.json').read_text(encoding='utf-8'))['defaults']
+        self.permissions = json.loads((self.kit_dir / 'config/permissions.json').read_text(encoding='utf-8'))
+        self.allowed_commands = json.loads((self.kit_dir / 'config/allowed-commands.json').read_text(encoding='utf-8'))['commands']
         self.loaded_config_hash = self._config_hash()
         for key in ('max_agent_retries', 'max_task_seconds', 'max_tool_calls_per_task'):
             if type(self.policy.get(key)) is not int or self.policy[key] < (0 if key == 'max_agent_retries' else 1):
@@ -57,10 +58,66 @@ class Orchestrator:
                 raise ValueError('Required local control cannot be disabled: ' + key)
         if type(self.policy.get('require_uat_approval')) is not bool:
             raise ValueError('require_uat_approval must be boolean')
+        # Keys newer than a host's preserved platform.json fall back to the defaults below.
+        budgets = self.policy.setdefault('skill_budgets', {})
+        if not isinstance(budgets, dict) or any(not isinstance(v, dict) for v in budgets.values()):
+            raise ValueError('skill_budgets must map skill name to an object of limits')
+        for skill, limits in budgets.items():
+            for key, value in limits.items():
+                minimum = 0 if key == 'max_agent_retries' else 1
+                if key not in ('max_agent_retries', 'max_task_seconds') or type(value) is not int or value < minimum:
+                    raise ValueError(f'Invalid skill budget {skill}.{key}')
+        threshold = self.policy.setdefault('post_hoc_threshold_seconds', 10)
+        if type(threshold) is not int or threshold < 0:
+            raise ValueError('post_hoc_threshold_seconds must be a non-negative integer')
+        if type(self.policy.setdefault('require_task_for_code_writes', True)) is not bool:
+            raise ValueError('require_task_for_code_writes must be boolean')
+
+    _PINNED_CONFIG = ('platform.json', 'capabilities.json', 'permissions.json', 'skill-registry.json', 'allowed-commands.json')
 
     def _config_hash(self):
-        data = b''.join((self.kit_dir / 'config' / name).read_bytes() for name in ('platform.json', 'capabilities.json', 'permissions.json', 'skill-registry.json', 'allowed-commands.json'))
+        # LF-normalized so Windows and macOS/Linux checkouts of one config pin identically.
+        data = b''.join(normalized_bytes((self.kit_dir / 'config' / name).read_bytes()) for name in self._PINNED_CONFIG)
         return hashlib.sha256(data).hexdigest()
+
+    def _legacy_config_hash(self):
+        data = b''.join((self.kit_dir / 'config' / name).read_bytes() for name in self._PINNED_CONFIG)
+        return hashlib.sha256(data).hexdigest()
+
+    def migrate_pins(self, run_id, operator, reason):
+        """Re-pin a run recorded under the pre-portable hash algorithm (native path
+        separator, raw CRLF bytes). Accepted only when every recorded pin equals the
+        legacy digest of the *current* content, i.e. no skill or config actually
+        changed -- this proves equivalence, it never adopts new content."""
+        if not operator.strip() or not reason.strip():
+            raise ValueError('Pin migration requires an operator and a reason')
+        with self.store.transaction():
+            run = self._run(run_id)
+            if run.metadata['active_task']:
+                raise ValueError('Finish or recover the active task before migrating pins')
+            skills = self.registry.discover()
+            pins, changed = dict(run.metadata['skill_pins']), []
+            for skill, pin in run.metadata['skill_pins'].items():
+                item = skills.get(skill)
+                if item is None:
+                    raise ValueError('Pinned skill no longer exists: ' + skill)
+                if pin == item['revision']:
+                    continue
+                if pin not in item['legacy_revisions']:
+                    raise ValueError('Skill content changed since the run started: ' + skill + '; start a new run')
+                pins[skill] = item['revision']
+                changed.append(skill)
+            config_hash = run.metadata['config_hash']
+            if config_hash != self._config_hash():
+                if config_hash != self._legacy_config_hash():
+                    raise ValueError('Configuration changed since the run started; start a new run')
+                config_hash = self._config_hash()
+                changed.append('config')
+            if not changed:
+                return run
+            run.metadata['skill_pins'], run.metadata['config_hash'] = pins, config_hash
+            self._save(run, 'PINS_MIGRATED', {'operator': operator, 'reason': reason, 'migrated': changed})
+        return run
 
     def _run(self, run_id, allow_terminal=False):
         run = self.store.get_run(run_id)
@@ -115,6 +172,7 @@ class Orchestrator:
                 raise ValueError('Scope files changed after review; reopen the run to invalidate downstream evidence')
             if changed and run.stage in _STAGE_GATE_REVOKE:
                 run.metadata['results'].pop(run.stage, None)
+                run.metadata.get('skill_results', {}).pop(run.stage, None)
                 self._revoke(run, _STAGE_GATE_REVOKE[run.stage])
             run.metadata['context'] = recorded
             self._save(run, 'CONTEXT_REFRESHED', {'paths': paths})
@@ -153,6 +211,8 @@ class Orchestrator:
             run.stage = next_stage
             run.status = 'COMPLETED' if next_stage == 'COMPLETED' else 'RUNNING'
             self._save(run, 'STAGE_CHANGED')
+        if run.status == 'COMPLETED':
+            self.store.compact(run_id)
         return run
 
     def approve(self, run_id, gate, approver, decision='APPROVED', comment=''):
@@ -193,9 +253,10 @@ class Orchestrator:
                 raise ValueError('Approval needs ready evidence for ' + prerequisite)
             self._fresh(run)
             context_files = run.metadata.get('context', {}).get('files', {})
-            if not auto_approve_eligible(gate, run.metadata['results'], context_files):
-                raise ValueError('Not eligible for auto-approval: requires a recorded TASK_ONLY '
-                                  'classification, a single-file scope, and a TECHNICAL_READY verdict')
+            if not auto_approve_eligible(gate, run.metadata.get('skill_results', {}), context_files):
+                raise ValueError('Not eligible for auto-approval: requires a TASK_ONLY classification recorded by '
+                                  'work-item-level-classifier, a single-file scope, and a TECHNICAL_READY verdict '
+                                  'recorded by technical-readiness-verifier')
             self.store.approval(run_id, gate, AUTO_APPROVER, 'APPROVED', reason, now(), run.metadata['scope_revision'])
             self._save(run, 'AUTO_APPROVAL_RECORDED', {'gate': gate, 'reason': reason})
         return run
@@ -212,6 +273,7 @@ class Orchestrator:
             # Retain intake, invalidate downstream evidence and all prior approvals.
             run.metadata['scope_revision'] += 1
             run.metadata['results'] = {k: v for k, v in run.metadata['results'].items() if k == 'INTAKE'}
+            run.metadata['skill_results'] = {k: v for k, v in run.metadata.get('skill_results', {}).items() if k == 'INTAKE'}
             run.metadata.pop('context', None)
             run.stage, run.status = 'CONTEXT', 'RUNNING'
             self._save(run, 'SCOPE_REOPENED', {'reason': reason})
@@ -226,6 +288,7 @@ class Orchestrator:
                 self.store.timing(run_id, task['id'], 'CANCELLED', now())
             run.metadata['active_task'] = None
             self._save(run, 'RUN_CANCELLED')
+        self.store.compact(run_id)
         return run
 
     def task_timings(self, run_id, task=None):
@@ -276,8 +339,12 @@ class Orchestrator:
             })
         return run
 
-    def _budget(self, run, key):
-        return run.metadata.get('budget_overrides', {}).get(key, self.policy[key])
+    def _budget(self, run, key, skill=None):
+        """Run override (operator-authorized) > per-skill default > global default."""
+        overrides = run.metadata.get('budget_overrides', {})
+        if key in overrides:
+            return overrides[key]
+        return self.policy['skill_budgets'].get(skill, {}).get(key, self.policy[key])
 
     def _active(self, run_id, task_id):
         run = self._run(run_id)
@@ -291,10 +358,27 @@ class Orchestrator:
         decision = evaluate(run.stage, {gate: self.store.has_approval(run_id, gate) for gate in ('technical', 'release')})
         if not decision.allowed:
             raise PermissionError('; '.join(decision.reasons))
-        elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(task['started_at'])).total_seconds()
-        if elapsed >= self._budget(run, 'max_task_seconds'):
+        # A task adopted on another machine is budgeted from its adoption, not from
+        # when the first machine started it (the gap was the handoff, not work).
+        clock = task.get('adopted_at') or task['started_at']
+        elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(clock)).total_seconds()
+        if elapsed >= self._budget(run, 'max_task_seconds', task['skill']):
             raise TimeoutError('Task execution budget exhausted')
         return run, task
+
+    def adopt_task(self, run_id, adopter):
+        """Continue a run's active task on this clone (after `handoff`/`resume`): restarts
+        its time budget, keeps its attempt count, and records who adopted it."""
+        with self.store.transaction():
+            run = self._run(run_id)
+            task = run.metadata.get('active_task')
+            if not task:
+                raise ValueError('Run has no active task to adopt')
+            task['adopted_at'] = now()
+            task.setdefault('adoptions', 0)
+            task['adoptions'] += 1
+            self._save(run, 'TASK_ADOPTED', {'task': task['id'], 'skill': task['skill'], 'by': adopter})
+        return run
 
     def _revoke(self, run, gates):
         for gate in gates:
@@ -320,18 +404,19 @@ class Orchestrator:
                 raise ValueError('; '.join(decision.reasons))
             key = f"{run.metadata['scope_revision']}:{run.stage}:{skill}"
             attempts = run.metadata['attempts'].get(key, 0)
-            if attempts > self._budget(run, 'max_agent_retries'):
+            if attempts > self._budget(run, 'max_agent_retries', skill):
                 raise ValueError('Retry budget exhausted')
             run.metadata['attempts'][key] = attempts + 1
             task = {'id': uuid.uuid4().hex, 'skill': skill, 'started_at': now(), 'tool_calls': 0}
             run.metadata['active_task'] = task
             self._revoke(run, _STAGE_GATE_REVOKE.get(run.stage, ()))
             run.metadata['results'].pop(run.stage, None)
+            run.metadata.setdefault('skill_results', {}).get(run.stage, {}).pop(skill, None)
             run.status = 'RUNNING'
             self.store.timing(run_id, task['id'], 'STARTED', task['started_at'], {'skill': skill, 'retry_count': attempts})
             self._save(run, 'TASK_STARTED', {'skill': skill})
         try:
-            context = {'run': redact_value(run.to_dict()), 'skill_path': item['path'], 'instructions': Path(item['path']).read_text(), 'context_files': {}}
+            context = {'run': redact_value(run.to_dict()), 'skill_path': item['path'], 'instructions': Path(item['path']).read_text(encoding='utf-8'), 'context_files': {}}
             for name in run.metadata.get('context', {}).get('files', {}):
                 # Recheck containment in case a path was replaced with a symlink.
                 snapshot(run.metadata['repo'], [name])
@@ -352,14 +437,21 @@ class Orchestrator:
             if self.registry.discover()[skill]['revision'] != current.metadata['skill_pins'][skill]:
                 raise ValueError('Skill changed during execution')
             current.metadata['active_task'] = None
-            current.metadata['results'][current.stage] = result
+            # The stage verdict is the latest result; every skill's own result is kept beside it,
+            # attributed, so a later skill at the same stage cannot overwrite another's verdict.
+            current.metadata['results'][current.stage] = {**result, 'skill': skill}
+            current.metadata.setdefault('skill_results', {}).setdefault(current.stage, {})[skill] = result
             if current.stage == 'IMPLEMENTATION':
                 # Existing scope files are fingerprinted after this implementation attempt.
                 current.metadata['context'] = snapshot(current.metadata['repo'], list(current.metadata['context']['files']))
             current.status = 'RUNNING' if result['status'] in SUCCESS_STATUSES else 'BLOCKED'
             duration = int((datetime.now(timezone.utc) - datetime.fromisoformat(active['started_at'])).total_seconds() * 1000)
-            self.store.timing(run_id, task_id, 'COMPLETED', now(), {'duration_ms': duration, 'result_status': result['status']})
-            self._save(current, 'RESULT_RECORDED', {'skill': skill, 'result': result})
+            # A task opened and closed within seconds with no governed tool call only
+            # records work done elsewhere; its duration is not execution time.
+            post_hoc = active['tool_calls'] == 0 and duration < self.policy['post_hoc_threshold_seconds'] * 1000
+            self.store.timing(run_id, task_id, 'COMPLETED', now(), {'duration_ms': duration, 'result_status': result['status'],
+                                                                   'tool_calls': active['tool_calls'], 'post_hoc': post_hoc})
+            self._save(current, 'RESULT_RECORDED', {'skill': skill, 'result': result, 'post_hoc': post_hoc})
         return result
 
     def fail_task(self, run_id, task_id, error):
@@ -430,6 +522,11 @@ class Orchestrator:
             if not self.tools.allowed(name, self.capabilities.get(task['skill']), self.permissions.get(task['skill'], [])):
                 raise PermissionError('Tool capability denied: ' + name)
             tool = self.tools.tools[name]
+            try:
+                inspect.signature(tool['handler']).bind(**arguments)
+            except TypeError as exc:
+                params = ', '.join(inspect.signature(tool['handler']).parameters)
+                raise ValueError(f'Invalid arguments for tool {name} ({exc}); accepted: {params}') from None
             if task['tool_calls'] >= self.policy['max_tool_calls_per_task']:
                 raise ValueError('Tool call budget exhausted')
             if tool['side_effecting'] and not idempotency_key:

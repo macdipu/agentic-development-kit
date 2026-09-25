@@ -14,8 +14,8 @@ class RoutingCacheTests(unittest.TestCase):
         self.repo_root = root / 'repo'
         self.kit_dir = self.repo_root / 'agentic/kit'
         (self.kit_dir / 'workflows').mkdir(parents=True)
-        (self.kit_dir / 'workflows/brownfield.md').write_text('Brownfield workflow v1\n')
-        (self.repo_root / 'AGENTS.md').write_text('Core behavior v1\n')
+        (self.kit_dir / 'workflows/brownfield.md').write_text('Brownfield workflow v1\n', encoding='utf-8', newline='\n')
+        (self.repo_root / 'AGENTS.md').write_text('Core behavior v1\n', encoding='utf-8', newline='\n')
         self.cache = RoutingCache(root / 'state/route-cache.json')
 
     def version(self):
@@ -48,7 +48,7 @@ class RoutingCacheTests(unittest.TestCase):
         key = cache_key('bug', 'brownfield', 'auth')
         version = self.version()
         self.cache.put(key, version, {'route': ['INTAKE']}, '2026-01-01T00:00:00+00:00')
-        (self.kit_dir / 'workflows/brownfield.md').write_text('Brownfield workflow v2\n')
+        (self.kit_dir / 'workflows/brownfield.md').write_text('Brownfield workflow v2\n', encoding='utf-8', newline='\n')
         self.assertIsNone(self.cache.get(key, self.version()))
 
     def test_unrelated_key_stays_valid_after_another_key_is_written(self):

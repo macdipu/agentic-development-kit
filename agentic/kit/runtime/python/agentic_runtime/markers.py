@@ -4,31 +4,34 @@ import os
 import tempfile
 from pathlib import Path
 
+from .context import posix_key
+
 
 def _relative_store_dir(path, store_dir):
     # Relative to the pointer's folder, so a pointer committed on one machine resolves on another.
-    return os.path.relpath(Path(store_dir).resolve(), Path(path).resolve().parent)
+    return Path(os.path.relpath(Path(store_dir).resolve(), Path(path).resolve().parent)).as_posix()
 
 
 def store_dir_of(path, pointer):
     """Absolute store directory a pointer names (relative entries resolve against the pointer's folder)."""
-    return (Path(path).resolve().parent / pointer['store_dir']).resolve()
+    return (Path(path).resolve().parent / posix_key(pointer['store_dir'])).resolve()
 
 
 def reserve(path, store_dir, run_id):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation prevents another CLI task from replacing this marker.
-    with path.open('x') as handle:
+    with path.open('x', encoding='utf-8') as handle:
         json.dump({'store_dir': _relative_store_dir(path, store_dir), 'run_id': run_id,
                    'task_id': None, 'status': 'STARTING'}, handle)
 
 
 def activate(path, store_dir, run_id, task_id):
     path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix='.active-task-', dir=path.parent)
     try:
-        with os.fdopen(fd, 'w') as handle:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as handle:
             json.dump({'store_dir': _relative_store_dir(path, store_dir), 'run_id': run_id,
                        'task_id': task_id}, handle)
             handle.flush()
@@ -42,7 +45,7 @@ def clear(path, store_dir, run_id, task_id=None):
     path = Path(path)
     if not path.exists():
         return
-    marker = json.loads(path.read_text())
+    marker = json.loads(path.read_text(encoding='utf-8'))
     if 'store_dir' not in marker or store_dir_of(path, marker) != Path(store_dir).resolve() or marker.get('run_id') != run_id:
         return  # Never clear another run's marker.
     if task_id is not None and marker.get('task_id') != task_id:

@@ -9,7 +9,7 @@ from agentic_runtime import commits, handoff
 
 class CommitTests(HarnessCase):
     def git(self, *args):
-        return subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True, text=True).stdout
+        return subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace').stdout
 
     def init_repo(self):
         self.git('init', '-q')
@@ -17,14 +17,14 @@ class CommitTests(HarnessCase):
         self.git('config', 'user.email', 'fixture@example.com')
 
     def commit(self, name, message):
-        (self.root / name).write_text(name)
+        (self.root / name).write_text(name, encoding='utf-8', newline='\n')
         self.git('add', name)
-        subprocess.run(['git', 'commit', '-q', '-F', '-'], cwd=self.root, input=message, check=True, text=True)
+        subprocess.run(['git', 'commit', '-q', '-F', '-'], cwd=self.root, input=message, check=True, text=True, encoding='utf-8', errors='replace')
 
     def cli(self, *args):
         return subprocess.run([sys.executable, str(self.kit / 'runtime/python/agentic_runtime/cli.py'),
                                '--store-dir', str(self.store.store_dir), *args],
-                              cwd=self.root, capture_output=True, text=True)
+                              cwd=self.root, capture_output=True, text=True, encoding='utf-8', errors='replace')
 
     def test_render_message_orders_trailers_after_body(self):
         message = commits.render_message(type='feat', scope='auth', subject='add refresh', body='Why.',
@@ -47,14 +47,14 @@ class CommitTests(HarnessCase):
                                                    work_item='FEAT-2', task='T-4'))
         self.commit('c.txt', commits.render_message(type='fix', subject='fix c', trigger='user-request'))
         result = handoff.close_session(self.root, agent='codex', task='t', completed='c', status='COMPLETED')
-        session = Path(result['session']).read_text()
+        session = Path(result['session']).read_text(encoding='utf-8')
         section = session.split('## Commits\n', 1)[1].split('\n\n', 1)[0]
         lines = section.splitlines()
         self.assertEqual(len(lines), 2)
         self.assertIn('fix: fix c [user-request]', lines[0])
         self.assertIn('feat: add b [task-finish | FEAT-2 | T-4]', lines[1])
         self.assertNotIn('seed', section)
-        self.assertIn('## Commits', Path(result['handoff']).read_text())
+        self.assertIn('## Commits', Path(result['handoff']).read_text(encoding='utf-8'))
 
     def test_session_embeds_runtime_summary_of_run(self):
         self.init_repo()
@@ -64,7 +64,7 @@ class CommitTests(HarnessCase):
         result = handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING',
                                        store=self.store, run_id=self.run_id)
         for path in (result['session'], result['handoff']):
-            runtime = Path(path).read_text().split('## Runtime\n', 1)[1].split('\n## Commits', 1)[0]
+            runtime = Path(path).read_text(encoding='utf-8').split('## Runtime\n', 1)[1].split('\n## Commits', 1)[0]
             self.assertIn(f'- Run: {self.run_id}', runtime)
             self.assertIn('- CONTEXT: READY', runtime)
             self.assertIn('  - evidence: scope.md', runtime)
@@ -131,17 +131,17 @@ class CommitTests(HarnessCase):
         self.commit('b.txt', commits.render_message(type='feat', subject='add b', trigger='user-request'))
         again = handoff.close_session(self.root, agent='claude', task='t', completed='c2', status='RUNNING', session_id='s1')
         self.assertEqual(first['session'], again['session'])
-        self.assertIn('feat: add b', Path(again['session']).read_text())
+        self.assertIn('feat: add b', Path(again['session']).read_text(encoding='utf-8'))
         other = handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING', session_id='s2')
         self.assertNotEqual(other['session'], first['session'])
         self.assertEqual(len(list((self.root / '.agent/sessions').glob('*.md'))), 2)
-        self.assertIn('## Commits\n(none)', Path(other['session']).read_text())
+        self.assertIn('## Commits\n(none)', Path(other['session']).read_text(encoding='utf-8'))
 
     def test_session_without_run_says_so(self):
         self.init_repo()
         self.commit('a.txt', 'chore: seed\n')
         result = handoff.close_session(self.root, agent='claude', task='t', completed='c', status='RUNNING')
-        self.assertIn('## Runtime\n(no governed run)', Path(result['session']).read_text())
+        self.assertIn('## Runtime\n(no governed run)', Path(result['session']).read_text(encoding='utf-8'))
 
     def test_untrailered_commit_is_flagged(self):
         self.init_repo()
@@ -169,3 +169,46 @@ class CommitTests(HarnessCase):
         result = self.cli('commit-message', '--type', 'docs', '--subject', 'add policy', '--trigger', 'user-request')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, 'docs: add policy\n\nCommit-Trigger: user-request\n')
+
+    def test_commit_cli_rejects_bad_message_before_touching_git(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        head = self.git('rev-parse', 'HEAD')
+        (self.root / 'b.txt').write_text('b', encoding='utf-8')
+        result = self.cli('commit', '--type', 'fix', '--subject', 'x' * 80, '--trigger', 'user-request', '--path', 'b.txt')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('header is', result.stderr)
+        self.assertEqual(self.git('rev-parse', 'HEAD'), head)
+        self.assertEqual(self.git('diff', '--cached', '--name-only'), '')
+
+    def test_commit_cli_stages_paths_joins_trailers_and_records_run(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        self.start()
+        (self.root / 'b.txt').write_text('b', encoding='utf-8')
+        (self.root / 'unrelated.txt').write_text('u', encoding='utf-8')
+        result = self.cli('commit', '--type', 'feat', '--subject', 'add b', '--trigger', 'task-finish',
+                          '--task', 'T-1', '--run', self.run_id, '--path', 'b.txt',
+                          '--trailer', 'Co-Authored-By: Bot <bot@example.com>')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        body = self.git('log', '-1', '--format=%B')
+        self.assertIn('Commit-Trigger: task-finish\nCo-Authored-By: Bot <bot@example.com>', body)
+        self.assertEqual(self.git('log', '-1', '--format=%(trailers:key=Commit-Trigger,valueonly)').strip(), 'task-finish')
+        committed = self.git('show', '--name-only', '--format=', 'HEAD').split()
+        self.assertEqual([f for f in committed if not f.startswith('.agent/')], ['b.txt'])
+        self.assertTrue(any(f.startswith('.agent/state/runs/') for f in committed))  # ledger rides along
+        self.assertIn('unrelated.txt', self.git('status', '--short'))
+        events = [e for e in self.store.ledger(self.run_id)['audit_events'] if e['event'] == 'COMMIT_RECORDED']
+        self.assertEqual(events[-1]['payload']['subject'], 'feat: add b')
+
+    def test_commit_cli_refuses_empty_commit(self):
+        self.init_repo()
+        self.commit('a.txt', 'chore: seed\n')
+        result = self.cli('commit', '--type', 'fix', '--subject', 'nothing', '--trigger', 'user-request')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Nothing staged', result.stderr)
+
+    def test_extra_trailer_cannot_spoof_traceability_keys(self):
+        with self.assertRaisesRegex(ValueError, 'dedicated option'):
+            commits.render_message(type='fix', subject='ok', trigger='user-request',
+                                   extra_trailers=['Commit-Trigger: task-finish'])

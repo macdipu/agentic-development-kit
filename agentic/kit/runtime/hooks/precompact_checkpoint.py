@@ -8,7 +8,7 @@ context-budget percentage to hooks, so this is the trigger point, not a 95%
 threshold.
 
 What it does deterministically (safe, no judgment involved):
-  - If a governed task is active (.agent/runtime/active-task.json),
+  - If a governed task is active (.agent/local/active-task.json),
     write an audit event + checkpoint row recording the run's stage/status at
     this moment, so the store reflects "still open, last seen here" rather than
     going silent.

@@ -1,0 +1,6 @@
+{
+  "auto_commit_state": true,
+  "claim_ttl_seconds": 86400,
+  "handoff_push": true,
+  "fetch_on_session_start": true
+}

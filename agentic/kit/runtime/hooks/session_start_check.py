@@ -4,10 +4,10 @@
 Wired via .claude/settings.json (event SessionStart, no matcher -- runs on
 startup/resume/clear alike). Order of checks:
 
-1. .agent/runtime/active-task.json present -> a task-start was never
+1. .agent/local/active-task.json present -> a task-start was never
    closed by task-finish/task-fail/cancel/recover. Report it as midflight.
 2. No active-task pointer, but the default run store
-   (.agent/runtime/runs/) has a run whose status is RUNNING or
+   (.agent/state/runs/) has a run whose status is RUNNING or
    BLOCKED -> report the most recently updated one as midflight.
 3. Otherwise -> nothing in flight, clear to start the next work item.
 
@@ -77,8 +77,29 @@ def _check_handoff(active_run_id):
     return handoff.pickup_summary(REPO_ROOT, active_run_id=active_run_id)
 
 
+def _session_notes():
+    """Other clones' claims, commits waiting upstream, uncommitted agent state."""
+    from agentic_runtime.cli import session_notes
+    return session_notes(REPO_ROOT)
+
+
+def _adoptable(run_id):
+    """A run whose task was started on another machine: the ledger says active, no local pointer."""
+    from agentic_runtime.store import RuntimeStore
+    run = RuntimeStore(str(DEFAULT_RUNS_DIR)).get_run(run_id) if run_id else None
+    if run and run.metadata.get('active_task') and not ACTIVE_TASK_POINTER.exists():
+        return (f'Run {run_id} has an active task ({run.metadata["active_task"]["skill"]}) started on another '
+                f'clone. Continue it here with `agentic_runtime.cli resume {run_id}` '
+                f'(--takeover --reason "..." only if that clone still holds the claim).')
+    return None
+
+
 def main():
     run_id = None
+    try:
+        notes = _session_notes()
+    except Exception as exc:
+        notes = [f'Cross-machine check failed (continuing): {exc}']
     try:
         context, run_id = _check_active_task()
         if context is None:
@@ -93,6 +114,14 @@ def main():
             'Midflight state is UNKNOWN. Do not start new governed work. '
             f'Run doctor and reconcile the database/marker: {exc}'
         )
+    try:
+        adopt = _adoptable(run_id)
+        if adopt:
+            notes.append(adopt)
+    except Exception:
+        pass
+    if notes:
+        context = context + '\n\n' + '\n\n'.join(notes)
     try:
         handoff_context = _check_handoff(run_id)
     except Exception as exc:

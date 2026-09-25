@@ -2,12 +2,13 @@
 
 Python-native reimplementation of that project's file format (it is a small,
 zero-runtime-dependency Node/TS CLI; rather than add a Node toolchain to this
-Python-only kit, its ~5 template functions are ported here directly). Like
-RuntimeStore's ledger beside them in `.agent/runtime/`, these files are
-meant to be committed: `.agent/HANDOFF.md` + `.agent/sessions/*.md` are the
-plain-text handoff notes any agent platform (Claude Code, Codex, ...) reads
-on pickup and writes on close, so a different tool on a different machine can
-continue the same work from what's in git -- no server.
+Python-only kit, its ~5 template functions are ported here directly). The
+notes are committed with the project's branches, append-only so two machines
+never conflict: each handoff is a new `.agent/state/handoffs/<stamp>-<agent>.md`,
+each session a new `.agent/sessions/*.md`. `.agent/HANDOFF.md` -- the file every
+agent platform reads on pickup -- is a local copy of the newest handoff,
+regenerated on write and on pickup, never committed. A different tool on a
+different machine continues from `git pull` -- no server.
 
 Upstream restricts `agent` to exactly "claude" or "codex"; this module keeps
 that restriction so files stay valid input to the real agent-handoff CLI too.
@@ -36,6 +37,7 @@ VALID_AGENTS = ("claude", "codex")
 PICKUP_SECTIONS = ("Task", "Completed", "Blockers", "Decisions", "Next Action")
 NOTE_SECTIONS = PICKUP_SECTIONS + ("Changed Files", "Tests", "Runtime", "Commits", "Git Snapshot", "Git Status")
 PICKUP_LIMIT = 4000
+AUDIT_TAIL = 25
 
 
 def _now_iso() -> str:
@@ -57,7 +59,7 @@ def git_snapshot(repo_root) -> str:
     """Branch, most recent commit, and short status -- the same three facts upstream embeds."""
     root = Path(repo_root)
     def run(*args):
-        result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10, encoding='utf-8', errors='replace')
         return result.stdout.strip() if result.returncode == 0 else "(unavailable)"
     branch = run("rev-parse", "--abbrev-ref", "HEAD")
     commit = run("log", "-1", "--oneline")
@@ -71,7 +73,7 @@ def git_user(repo_root) -> str:
     shared project. Falls back to whatever half of name/email is configured."""
     root = Path(repo_root)
     def run(*args):
-        result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10, encoding='utf-8', errors='replace')
         return result.stdout.strip() if result.returncode == 0 else ""
     name = run("config", "user.name")
     email = run("config", "user.email")
@@ -145,6 +147,7 @@ def summarize_run(store, run_id: str) -> str:
     total = sum(s["duration_ms"] or 0 for s in spans)
     lines += _section(f"Timing (total {_fmt_ms(total)})", [
         f"- {s['started_at']} {skills.get(s['task'], s['task'])}: {s['event']} {_fmt_ms(s['duration_ms'])} (task {s['task']})"
+        + (" [post-hoc record]" if s.get("post_hoc") else "")
         for s in spans])
     lines += _section("Attempts", [f"- {key}: {count}" for key, count in sorted(meta.get("attempts", {}).items())])
     lines += _section("Budget Overrides", [f"- {key}: {value}" for key, value in sorted(meta.get("budget_overrides", {}).items())])
@@ -152,11 +155,20 @@ def summarize_run(store, run_id: str) -> str:
     pins = sorted(meta.get("skill_pins", {}).items())
     lines += [f"\n### Skill Pins ({len(pins)})", "<details><summary>skill revisions</summary>\n",
               *(f"- {skill}: {rev}" for skill, rev in pins), "\n</details>"] if pins else _section("Skill Pins", [])
-    lines += _section("Checkpoints", [f"- {c['created_at']} {c['stage']} {c['status']}" for c in data.get("checkpoints", [])])
-    lines += _section("Audit", [
-        f"- {e['created_at']} {e['event']}" + (f" {_compact(e['payload'])}" if e.get("payload") else "")
-        for e in data.get("audit_events", [])])
-    lines += _section("Tool Calls", [f"- {key}: {call.get('status')}" for key, call in sorted(data.get("tool_calls", {}).items())])
+    checkpoints = data.get("checkpoints", [])
+    total_checkpoints = len(checkpoints) + data.get("compacted_checkpoints", 0)
+    lines += _section(f"Checkpoints ({total_checkpoints}, latest shown)",
+                      [f"- {c['created_at']} {c['stage']} {c['status']}" for c in checkpoints[-1:]])
+    # Session records are written on every close and committed: carry the recent audit
+    # trail, not the whole ledger (`agentic_runtime.cli show RUN_ID` / the run file has it).
+    audit = data.get("audit_events", [])
+    lines += _section(f"Audit (last {min(len(audit), AUDIT_TAIL)} of {len(audit)})", [
+        f"- {e['created_at']} {e['event']}" + (f" {_compact(e['payload'])[:300]}" if e.get("payload") else "")
+        for e in audit[-AUDIT_TAIL:]])
+    statuses = {}
+    for call in data.get("tool_calls", {}).values():
+        statuses[call.get("status")] = statuses.get(call.get("status"), 0) + 1
+    lines += _section("Tool Calls", [f"- {status}: {count}" for status, count in sorted(statuses.items(), key=str)])
     return "\n".join(lines)
 
 
@@ -199,10 +211,39 @@ def render_handoff(*, last_agent: str, operator: str, status: str, task: str, co
     )
 
 
+HANDOFF_KEEP = 30
+
+
+def _handoffs_dir(repo_root) -> Path:
+    return Path(repo_root) / ".agent" / "state" / "handoffs"
+
+
 def write_handoff(repo_root, *, ts: Optional[str] = None, **fields) -> Path:
+    """Add a committed handoff file and refresh the local HANDOFF.md copy. Only the
+    newest HANDOFF_KEEP handoff files are kept (deleting never conflicts in git)."""
+    ts = ts or _now_iso()
+    text = render_handoff(ts=ts, **fields)
+    directory = _handoffs_dir(repo_root)
+    directory.mkdir(parents=True, exist_ok=True)
+    import uuid
+    name = f"{_stamp_for_filename(ts)}-{fields.get('last_agent', 'agent')}-{uuid.uuid4().hex[:6]}.md"
+    (directory / name).write_text(text, encoding='utf-8', newline='\n')
+    for old in sorted(directory.glob('*.md'))[:-HANDOFF_KEEP]:
+        old.unlink(missing_ok=True)
     path = Path(repo_root) / ".agent" / "HANDOFF.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_handoff(ts=ts, **fields))
+    path.write_text(text, encoding='utf-8', newline='\n')
+    return path
+
+
+def sync_local_handoff(repo_root) -> Optional[Path]:
+    """Point the local HANDOFF.md at the newest committed handoff (after a pull)."""
+    newest = sorted(_handoffs_dir(repo_root).glob('*.md')) if _handoffs_dir(repo_root).is_dir() else []
+    if not newest:
+        return None
+    path = Path(repo_root) / ".agent" / "HANDOFF.md"
+    text = newest[-1].read_text(encoding='utf-8')
+    if not path.is_file() or path.read_text(encoding='utf-8') != text:
+        path.write_text(text, encoding='utf-8', newline='\n')
     return path
 
 
@@ -251,7 +292,7 @@ def _session_file(repo_root, session_id: Optional[str]) -> Optional[Path]:
     if not session_id or not sessions_dir.is_dir():
         return None
     marker = f"- Session: {session_id}\n"
-    return next((p for p in sorted(sessions_dir.glob("*.md"), reverse=True) if marker in p.read_text()), None)
+    return next((p for p in sorted(sessions_dir.glob("*.md"), reverse=True) if marker in p.read_text(encoding='utf-8')), None)
 
 
 def write_session(repo_root, *, agent: str, ts: Optional[str] = None, session_id: Optional[str] = None,
@@ -262,7 +303,7 @@ def write_session(repo_root, *, agent: str, ts: Optional[str] = None, session_id
     sessions_dir = Path(repo_root) / ".agent" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     path = _session_file(repo_root, session_id) or sessions_dir / f"{_stamp_for_filename(ts)}-{agent}.md"
-    path.write_text(render_session(agent=agent, ended=ts, session_id=session_id, **fields))
+    path.write_text(render_session(agent=agent, ended=ts, session_id=session_id, **fields), encoding='utf-8', newline='\n')
     return path
 
 
@@ -287,6 +328,52 @@ def close_session(repo_root, *, agent: str, task: str, completed: str, status: s
     return {"session": str(session_path), "handoff": str(handoff_path)}
 
 
+def current_agent(repo_root) -> str:
+    """Which platform is driving: explicit AGENTIC_AGENT, Claude Code's CLAUDECODE, a
+    Codex environment, then the installation record; 'claude' as the last resort."""
+    import os
+    explicit = os.environ.get('AGENTIC_AGENT', '').strip().lower()
+    if explicit in VALID_AGENTS:
+        return explicit
+    if os.environ.get('CLAUDECODE'):
+        return 'claude'
+    if any(key.startswith('CODEX_') for key in os.environ):
+        return 'codex'
+    try:
+        record = json.loads((Path(repo_root) / 'agentic/data/project-context/installation.json').read_text(encoding='utf-8'))
+        if record.get('agent') in VALID_AGENTS:
+            return record['agent']
+    except (OSError, ValueError):
+        pass
+    return 'claude'
+
+
+def refresh_from_run(repo_root, store, run_id, skill: str = '', result: Optional[dict] = None,
+                     error: str = '') -> Path:
+    """Rewrite HANDOFF.md from the run's recorded state at the end of every task, so
+    the next agent -- any platform, any machine -- can continue even if this session
+    crashes or never runs `close-session`. Session records stay one per session."""
+    run = store.get_run(run_id)
+    if run is None:
+        raise ValueError('Unknown run')
+    agent = current_agent(repo_root)
+    result = result or {}
+    if error:
+        completed = f"{skill or 'Task'} failed at {run.stage}: {error}"
+    else:
+        evidence = ', '.join(result.get('evidence', [])[:5])
+        completed = f"{skill or 'Task'} finished at {run.stage} with {result.get('status', '?')}" + (f" (evidence: {evidence})" if evidence else '')
+    blockers = '; '.join(result.get('blocking_issues', [])) or ('Task failed; see Completed.' if error else '')
+    base = previous_session_head(repo_root)
+    commits = commit_log.format_commit_lines(commit_log.commits_since(repo_root, base))
+    return write_handoff(
+        repo_root, last_agent=agent, operator=git_user(repo_root), status=run.status, task=run.title,
+        completed=completed, changed_files=sorted(run.metadata.get('context', {}).get('files', {})),
+        tests='', blockers=blockers, decisions='',
+        next_action=result.get('recommended_next_step') or f"Continue run {run_id}: `agentic_runtime.cli show {run_id}`",
+        git_snapshot_text=git_snapshot(repo_root), commits=commits, runtime=summarize_run(store, run_id))
+
+
 def previous_session_head(repo_root, exclude: Optional[Path] = None) -> Optional[str]:
     """The commit the latest session record ended on -- the base for this session's commit log.
     `exclude` skips the current session's own record when it is being rewritten."""
@@ -297,8 +384,9 @@ def previous_session_head(repo_root, exclude: Optional[Path] = None) -> Optional
 
 
 def read_handoff(repo_root) -> Optional[str]:
+    sync_local_handoff(repo_root)
     path = Path(repo_root) / ".agent" / "HANDOFF.md"
-    return path.read_text() if path.is_file() else None
+    return path.read_text(encoding='utf-8') if path.is_file() else None
 
 
 def read_latest_session(repo_root, exclude: Optional[Path] = None) -> Optional[str]:
@@ -306,7 +394,7 @@ def read_latest_session(repo_root, exclude: Optional[Path] = None) -> Optional[s
     if not sessions_dir.is_dir():
         return None
     sessions = [p for p in sorted(sessions_dir.glob("*.md")) if p != exclude]
-    return sessions[-1].read_text() if sessions else None
+    return sessions[-1].read_text(encoding='utf-8') if sessions else None
 
 
 def _split_sections(text: str):

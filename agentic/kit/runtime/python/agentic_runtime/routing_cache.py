@@ -7,7 +7,7 @@ in a prior session -- none of that content changes per-run. This cache lets a
 session skip that re-read on a hit and reuse the previously recorded routing
 decision (route, matched docs) instead.
 
-Git-tracked with the rest of the runtime, one JSON file (.agent/runtime/route-cache.json),
+Machine-local (never committed; each clone rebuilds it), one JSON file (.agent/local/route-cache.json),
 written atomically (temp + os.replace) under a single exclusive-create lock --
 same convention as RuntimeStore, just one file instead of one per run.
 
@@ -23,6 +23,8 @@ import os
 import time
 from pathlib import Path
 from typing import Optional
+
+from .context import normalized_bytes
 
 LOCK_TIMEOUT_SECONDS = 10.0
 PROJECT_TYPES = ("greenfield", "brownfield")
@@ -48,9 +50,9 @@ def compute_kit_version(repo_root, kit_dir) -> str:
             relative = path.relative_to(repo_root)
         except ValueError:
             relative = path
-        digest.update(str(relative).encode())
+        digest.update(Path(relative).as_posix().encode())
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        digest.update(normalized_bytes(path.read_bytes()))
         digest.update(b"\0")
     return digest.hexdigest()
 
@@ -83,11 +85,11 @@ class RoutingCache:
     def _load(self) -> dict:
         if not self.path.exists():
             return {}
-        return json.loads(self.path.read_text())
+        return json.loads(self.path.read_text(encoding='utf-8'))
 
     def _save(self, data: dict):
         tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2, sort_keys=True))
+        tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding='utf-8', newline='\n')
         os.replace(tmp, self.path)
 
     def get(self, key: str, kit_version: str) -> Optional[dict]:

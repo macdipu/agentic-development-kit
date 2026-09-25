@@ -15,7 +15,7 @@ from agentic_runtime.store import RuntimeStore
 def main():
     with tempfile.TemporaryDirectory(prefix='agentic-demo-') as directory:
         root = Path(directory)
-        (root / 'scope.md').write_text('Synthetic task: demonstrate local workflow transitions.\n')
+        (root / 'scope.md').write_text('Synthetic task: demonstrate local workflow transitions.\n', encoding='utf-8', newline='\n')
         store = RuntimeStore(str(root / 'state'))
         tools = ToolRegistry()
         effects = []

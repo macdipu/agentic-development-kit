@@ -15,7 +15,7 @@ class ProductionTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.now = datetime.now(timezone.utc)
         self.file = self.root / 'evidence.md'
-        self.file.write_text('Synthetic external-control test report')
+        self.file.write_text('Synthetic external-control test report', encoding='utf-8', newline='\n')
 
     def document(self, stage='OBSERVE'):
         document = {'schema_version': 1, 'stage': stage, 'environment': 'fixture',

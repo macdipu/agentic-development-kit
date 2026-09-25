@@ -12,5 +12,26 @@
   "record_task_timing": true,
   "max_task_seconds": 900,
   "max_tool_calls_per_task": 50,
-  "require_uat_approval": false
+  "require_uat_approval": false,
+  "skill_budgets": {
+    "implementation-agent": {
+      "max_task_seconds": 7200,
+      "max_agent_retries": 4
+    },
+    "automated-qa-agent": {
+      "max_task_seconds": 3600,
+      "max_agent_retries": 3
+    },
+    "code-review-agent": {
+      "max_task_seconds": 1800
+    },
+    "device-preview-agent": {
+      "max_task_seconds": 1800
+    },
+    "web-preview-agent": {
+      "max_task_seconds": 1800
+    }
+  },
+  "post_hoc_threshold_seconds": 10,
+  "require_task_for_code_writes": true
 }
