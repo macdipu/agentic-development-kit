@@ -445,7 +445,7 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
         <h3>Resume anywhere</h3>
-        <p>Run state, handoff notes and session records live in git-tracked <code>.agent/</code>. After a <code>git pull</code>, another machine or another agent picks up the run where it stopped.</p>
+        <p>Run state, handoff notes and claims are committed in <code>.agent/state/</code>, append-only, so <code>git pull</code> merges two machines' work without conflicts. <code>handoff</code> on one machine, <code>resume</code> on the next.</p>
       </div>
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M12 8v8"/></svg></div>
@@ -514,7 +514,7 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
   <div class="wrap">
     <div class="eyebrow">Cross-agent</div>
     <h2>Works with any agent, on any machine</h2>
-    <p class="sub">The kit isn't tied to a single tool. Claude Code gets native hooks, while Codex and other shell-capable agents use the same CLI protocol. Run state and handoff notes live in git-tracked files. When one agent stops, whether it hit a usage limit, filled its context or you ended the day, another agent continues the same run from where it stopped.</p>
+    <p class="sub">The kit isn't tied to a single tool. Claude Code gets native hooks, while Codex and other shell-capable agents use the same CLI protocol. Run state, handoff notes and claims are committed in an append-only layout that git always merges. When one agent stops, whether it hit a usage limit, filled its context or you ended the day, another agent continues the same run from where it stopped.</p>
 
     <div class="xstage" id="xstage">
       <div class="xagent" id="x-claude">
@@ -527,19 +527,19 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
       </div>
       <div class="xhub" id="x-hub">
         <span class="xdock"></span>
-        <span class="xname">.agent/ <em>git-tracked</em></span>
+        <span class="xname">.agent/ <em>committed, append-only</em></span>
         <ul>
-          <li class="hubfile" data-f="handoff">HANDOFF.md</li>
+          <li class="hubfile" data-f="handoff">state/handoffs/*.md</li>
           <li class="hubfile" data-f="session">sessions/*.md</li>
-          <li class="hubfile" data-f="active">runtime/active-task.json</li>
-          <li class="hubfile" data-f="run">runtime/runs/r-7f3a.json</li>
+          <li class="hubfile" data-f="active">state/claims/r-7f3a/</li>
+          <li class="hubfile" data-f="run">state/runs/r-7f3a/events/</li>
         </ul>
       </div>
       <div class="xagent" id="x-codex">
         <span class="xdock"></span>
         <span class="xname">Codex</span>
         <span class="xwhere">desktop</span>
-        <div class="chips"><code>task-start</code><code>call-tool</code><code>task-finish</code><code>pickup</code></div>
+        <div class="chips"><code>pickup</code><code>resume</code><code>task-finish</code><code>handoff</code></div>
         <small>CLI adapter, installed with <code>--agent codex</code></small>
       </div>
       <div class="xagent" id="x-other">
@@ -563,7 +563,7 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></div>
         <h3>Saved after every tool call</h3>
-        <p>The run, its checkpoint and its audit entries are saved together, atomically, after each governed call. <code>PreCompact</code> saves a checkpoint before the context is compressed. If a session stops abruptly, only the work after the last saved call can be lost.</p>
+        <p>Every change adds one event file to the run's log, and each task end commits it. <code>handoff</code> also commits work in progress, so a session that stops mid-task can continue on another machine with <code>resume</code>.</p>
       </div>
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
@@ -583,10 +583,10 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
         <h3>Same machine or another</h3>
-        <p>On the same machine the next agent can resume right away. On another machine, run <code>git pull</code> first. Either way you don't need to re-explain the task.</p>
+        <p>On the same machine the next agent resumes right away. To move machines, run <code>handoff</code> (commit and push), then <code>resume RUN</code> on the other one (pull, claim, adopt the task).</p>
       </div>
     </div>
-    <p style="color:var(--muted);font-size:14px;margin-top:18px">Git doesn't lock a run across machines, so finish and push before resuming the run somewhere else. Native tool interception is available only in Claude Code. Other platforms need their own integration for it.</p>
+    <p style="color:var(--muted);font-size:14px;margin-top:18px">A claim locks a run to one machine once git has carried it there (commit, push, pull), which <code>handoff</code> does for you; taking over a claim needs a recorded reason. Native tool interception is available only in Claude Code. Other platforms use the same CLI.</p>
   </div>
 </section>
 
@@ -630,12 +630,12 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg></div>
         <h3>Budgets and timing</h3>
-        <p>The harness limits attempts per scope, stage and skill, tool calls per task, and elapsed time per task. It records start, end, failure and interruption events, which you can query with <code>timing RUN_ID</code>.</p>
+        <p>The harness limits attempts, tool calls and elapsed time per task, with per-skill defaults (implementation gets hours, not minutes). Tasks closed instantly with no tool call are flagged post-hoc instead of counted as work. Query with <code>timing RUN_ID</code>.</p>
       </div>
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
         <h3>Atomic run ledger</h3>
-        <p>Each run is one JSON file. The run, its checkpoint and its audit entries are committed together with write-temp plus atomic replace, under a per-run lock.</p>
+        <p>Each run is an append-only event log. A transaction writes one event with its state, checkpoint and audit changes; files are never edited, so the ledger merges across machines. Finished runs compact to one snapshot.</p>
       </div>
       <div class="card">
         <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.2V4z"/></svg></div>
@@ -704,7 +704,7 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
           <tr><td>Approvals</td><td>Decisions tied to the scope revision, with evidence prerequisites and revocation</td><td><code>--by</code> is the operator's own claim. There is no authenticated identity or RBAC</td></tr>
           <tr><td>Context</td><td>Hashes of scoped files detect edits and deletions</td><td>The caller chooses the files. Dependencies are not discovered automatically</td></tr>
           <tr><td>Tools</td><td>Explicit permissions, side-effect classes, idempotency, audit</td><td>Handlers are trusted. There is no OS-level isolation</td></tr>
-          <tr><td>Persistence</td><td>Atomic per-run JSON files with a lock</td><td>Operators can write to it, so it isn't immutable audit storage. The lock covers one machine only</td></tr>
+          <tr><td>Persistence</td><td>Append-only per-run event log, committed; claims lock a run to one clone</td><td>Operators can write to it, so it isn't immutable audit storage. A claim is visible once pushed and pulled</td></tr>
           <tr><td>Production</td><td>No production stage and no L7 tools</td><td>Not supported on purpose</td></tr>
         </tbody>
       </table>
@@ -909,7 +909,7 @@ const FRAMES = [
     l: ["release-readiness → READY (rollback · migration · monitoring)", "gate release · PENDING", "$ agentic_runtime.cli approve r-7f3a --gate release --by lead"] },
   { n: 9, st: "done", t: "Completed", p: "Each task gets one commit, with trailers that trace back through QA and design to the original request.",
     k: [], o: "feat(transfers): schedule bank transfers",
-    l: ["$ agentic_runtime.cli commit-message …", "  Work-Item: WI-042 · Task: BE-101 · Run: r-7f3a", "$ agentic_runtime.cli record-commit r-7f3a", "run r-7f3a COMPLETED"] },
+    l: ["$ agentic_runtime.cli commit --type feat --run r-7f3a --task BE-101 --path …", "  Work-Item: WI-042 · Task: BE-101 · Run: r-7f3a", "  recorded in run r-7f3a", "run r-7f3a COMPLETED"] },
 ];
 const pipe = document.getElementById("pipe");
 pipe.insertAdjacentHTML("beforeend", NODES.map(([label, gate], i) =>
@@ -995,13 +995,13 @@ if (playing) {
 
 /* ---------- cross-agent handoff ---------- */
 const XSTEPS = [
-  { at: "claude", on: ["claude"], files: ["run"], m: 62, t: "Claude Code is working on run r-7f3a. Native hooks guard every Bash, Write and Edit call, and the run ledger is saved after each one." },
-  { at: "claude", on: ["claude"], files: ["run"], m: 100, t: "Claude Code hits its usage limit partway through BE-101. The run, stage, approvals and budgets are already saved in .agent/." },
-  { at: "hub", on: ["claude", "hub"], files: ["handoff", "session"], m: 100, t: "The Stop hook writes HANDOFF.md and a session record: completed work, changed files, tests, blockers and next action." },
-  { at: "hub", on: ["hub"], files: ["run"], t: "git push. The .agent/ folder is git-tracked with repo-relative paths, so the whole run travels with the repo." },
-  { at: "codex", on: ["hub", "codex"], files: [], t: "Codex, on the same machine or after a git pull on another one, runs agentic_runtime.cli pickup and gets the condensed handoff note." },
-  { at: "codex", on: ["codex"], files: ["active"], t: "The midflight report shows r-7f3a is RUNNING, so Codex resumes that run instead of starting a new one." },
-  { at: "hub", on: ["codex", "hub"], files: ["handoff", "session"], t: "Codex finishes with task-finish, then close-session --agent codex writes the next handoff." },
+  { at: "claude", on: ["claude"], files: ["run", "active"], m: 62, t: "Claude Code claims run r-7f3a with task-start. Native hooks guard every Bash, Write and Edit call; each change adds one event file to the run's log." },
+  { at: "claude", on: ["claude"], files: ["run"], m: 100, t: "Claude Code hits its usage limit partway through BE-101. The run, stage, approvals and budgets are already in .agent/state/." },
+  { at: "hub", on: ["claude", "hub"], files: ["handoff", "session", "active"], m: 100, t: "agentic_runtime.cli handoff writes the handoff note, frees the claim, commits all work (work in progress included) and pushes." },
+  { at: "hub", on: ["hub"], files: ["run"], t: "Files are only ever added, never edited, so git merges state from both machines without conflicts." },
+  { at: "codex", on: ["hub", "codex"], files: ["active"], t: "On the other machine, Codex runs agentic_runtime.cli resume r-7f3a: git pull, claim the run, adopt the active task." },
+  { at: "codex", on: ["codex"], files: ["active"], t: "The first machine's commands on r-7f3a are now refused with the new holder's name, so two agents never work one run." },
+  { at: "hub", on: ["codex", "hub"], files: ["handoff", "session", "run"], t: "Codex finishes with task-finish; the kit refreshes the handoff and commits the state automatically." },
   { at: "other", on: ["hub", "other"], files: [], t: "Any other agent with a shell picks up the same way, through the CLI protocol and the agent-handoff skill." },
 ];
 const xStage = document.getElementById("xstage");
