@@ -18,7 +18,8 @@ story file(s) sprint-planner wrote at
 
 1. Reuse existing tasks; split new work into bounded units with observable acceptance criteria and clear affected components.
 2. Record task IDs, dependencies, implementation requirements, tests, references, and exclusions using the task template, including its `Category` field (`FE`, `Mobile`, `BE`, `DB/Integration`, `QA`, `Security/DevOps`, or `Documentation`) so the matching agent persona in `agentic/kit/agents/` can pick it up.
-3. Sequence dependency chains and identify work that can proceed independently; avoid splitting merely by artifact count or creating redundant hierarchy.
+3. For work that touches a screen, read the project UI index (`agentic/data/project-context/ui/*/UI-INDEX.md`, when present) and the mapped mockups before splitting; fill each task's `UI Reference` (mockup folder + BRD section), carry BRD-required fields/states the mockup omits into acceptance criteria, and list mockup-only elements as open questions, not scope.
+4. Sequence dependency chains and identify work that can proceed independently; avoid splitting merely by artifact count or creating redundant hierarchy.
 
 ## Deliverable
 

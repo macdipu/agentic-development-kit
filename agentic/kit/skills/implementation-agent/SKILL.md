@@ -17,7 +17,7 @@ Approved bounded task, technical/context evidence, applicable conventions, and a
 2. Make the smallest coherent change satisfying the task, preserving unrelated edits. Route material impact changes back to the orchestrator.
 3. Run checks appropriate to the affected behavior; inspect failures and record exact results. For mobile UI changes request device-preview-agent through the orchestrator when visual evidence is needed.
 4. Update affected documentation/context and map changes to acceptance criteria; report unfinished work explicitly.
-5. After `task-finish` accepts a success status with checks green, commit that task's paths per [commit policy](../../policies/commit-policy.md) (`--trigger task-finish`), then `record-commit`.
+5. After `task-finish` accepts a success status with checks green, commit that task's paths per [commit policy](../../policies/commit-policy.md) with `cli.py commit --trigger task-finish --run RUN_ID --task T --path <file>...` (it validates the message, commits with hooks, and records the commit in the run).
 
 ## Deliverable
 

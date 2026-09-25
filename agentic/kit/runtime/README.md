@@ -9,22 +9,24 @@ See the [production readiness checklist](production-readiness.md) for what organ
 | Capability | Implemented local behavior | Boundary |
 |---|---|---|
 | Workflow | Work-type routes, ordered transitions, terminal states, ready stage results | Coarse stages; no automatic business or sprint classification |
-| Persistence | One JSON file per run (`runs/<run_id>.json`); a `transaction()` context commits run, checkpoint, audit together via write-temp+atomic-replace, guarded by a per-run lock file | Local store; writable by the operator, not immutable audit storage; the lock guards one machine, not cross-machine access |
-| Approvals | Explicit decisions bound to scope revision, evidence prerequisites, rejection/revocation | `--by` is an operator assertion, not authenticated identity or RBAC |
+| Persistence | Append-only event log per run (`.agent/state/runs/<run_id>/events/*.json`): a `transaction()` writes one event with its run/checkpoint/audit operations; state is their replay (cached locally); files are added, never edited, so two machines merge with `git pull`; a terminal run is compacted to one snapshot event; paths stored with `/` on every OS | Writable by the operator, not immutable audit storage; the per-run lock guards one machine (across machines: claims) |
+| Cross-machine | `.agent/state/` and `.agent/sessions/` are committed with the project's branches; claims (`.agent/state/claims/<run>/`) hold a run for one clone; `handoff` commits work in progress and pushes; `resume` pulls, claims, and adopts the task; see [Cross-machine work](#cross-machine-work) | A claim protects only as far as git has carried it (commit + push + pull); a claim expires rather than detecting a dead machine |
+| Approvals | Explicit decisions bound to scope revision, evidence prerequisites, rejection/revocation; `--by` defaults to, and the operator's own spellings normalize to, the git identity | `--by` is an operator assertion, not authenticated identity or RBAC |
 | Context | Explicit scoped file hashes detect dirty changes and deletions | Caller selects sufficient files; no automatic dependency discovery or semantic freshness |
 | Skills | Stage eligibility and SHA-256 pins for instructions, references, shared contract | Trusted local files and adapters; no automatic model execution |
-| Results | Handoff shape, statuses, evidence presence, blocker consistency | Evidence truth and domain correctness require review |
+| Results | Handoff shape, statuses, evidence presence, blocker consistency; each skill's result is kept per stage (`skill_results`), attributed, beside the stage verdict | Evidence truth and domain correctness require review |
 | Tools | Explicit read/artifact/code/check/preview permissions, side-effect classification, idempotency reservation, audit, dry-run suppression | Legacy custom handlers may use L0–L6 ceilings; trusted handlers must declare effects correctly |
 | Default tools | Read/search, `write_artifact`, `write_file`, `run_command`, `run_preview`; each searched file is contained and commands match complete argv | Trusted local handlers; not OS isolation or race-proof access against hostile filesystem changes |
-| Coding-agent gate | A CLI-driven task protocol (`task-start`/`call-tool`/`task-finish`/`task-fail`) plus a Claude Code `PreToolUse` hook (`guard`) that checks native Bash/Write/Edit/NotebookEdit calls against the active task's explicit permissions and full Bash argument allowlist | Enforced only while a task is active and only for the matched tools; a session with no active governed task is unaffected |
-| Budgets | Attempts per scope/stage/skill, tool calls per task, elapsed task deadline | Cooperative checks before/after calls; cannot kill a blocked process |
+| Coding-agent gate | A CLI-driven task protocol (`task-start`/`call-tool`/`task-finish`/`task-fail`) plus a Claude Code `PreToolUse` hook (`guard`) that checks native Bash/Write/Edit/NotebookEdit calls against the active task's explicit permissions and full Bash argument allowlist; with no active task, native code writes are denied while any run is open (`require_task_for_code_writes`); calls the harness does not govern defer to the host's own permission prompts | Matched tools only; Bash without a task is not parsed; not process isolation |
+| Budgets | Attempts per scope/stage/skill, tool calls per task, elapsed task deadline; per-skill defaults (`skill_budgets`, e.g. implementation 7200s/4 retries) under run-level operator overrides | Cooperative checks before/after calls; cannot kill a blocked process |
 | Cancellation | Terminal run, no new calls or accepted late result | Cannot undo an external effect or terminate an arbitrary adapter |
 | Recovery | Explicit interruption acknowledgment; failed/unknown tool outcomes are not replayed | Operator must stop the old worker and reconcile external effects |
-| Timing | Start/end/failure/cancel/interruption events, duration for normal/failed adapters, retry count; `timing RUN_ID [--task]` queries recorded events and computed durations | Queue, approval-wait, active-vs-tool time attribution are not implemented |
+| Timing | Start/end/failure/cancel/interruption events, duration for normal/failed adapters, retry count; a task closed within `post_hoc_threshold_seconds` with no governed tool call is flagged `post_hoc` (a record of work done elsewhere, not execution time); `timing RUN_ID [--task]` queries events and durations | Queue, approval-wait, active-vs-tool time attribution are not implemented |
 | Redaction | Best-effort structured field and string masking for context, results, and error/audit payloads | Not comprehensive DLP; tool arguments reach the trusted handler unchanged |
 | Dependency closure | `impact MODULE... --edges edges.json` expands a transitive dependency closure from a caller-supplied module graph | Not connected to automatic dependency discovery; edges must be supplied explicitly |
-| Cross-agent handoff | `pickup`/`close-session` read/write `.agent/HANDOFF.md` + `.agent/sessions/*.md` (agent-handoff compatible, git-tracked), structured by task/completed/changed_files/tests/blockers/decisions/next_action plus the git-configured operator and a git-derived commit log | Handoff notes, session records (with a full `## Runtime` section) and the run store all live under `.agent/`, git-tracked, so another machine or platform resumes after `git pull` |
-| Commits | `commit-message` builds a Conventional Commits message with `Work-Item`/`Task`/`Run`/`Commit-Trigger` trailers; `record-commit RUN_ID` appends a `COMMIT_RECORDED` audit event | Does not run `git commit` or decide when to commit; see [commit policy](../policies/commit-policy.md) |
+| Cross-agent handoff | `pickup`/`close-session` read/write `.agent/HANDOFF.md` + `.agent/sessions/*.md` (agent-handoff compatible), structured by task/completed/changed_files/tests/blockers/decisions/next_action plus the git-configured operator and a git-derived commit log; every `task-finish`/`task-fail` rewrites HANDOFF from the ledger | Committed append-only (`.agent/state/handoffs/`); `.agent/HANDOFF.md` is a local copy |
+| Commits | `commit` validates the message first, stages `--path` files, runs `git commit -F` with hooks, and records `COMMIT_RECORDED`; `--trailer` joins attribution to the trailer block; `commit-message` previews; `record-commit` audits a commit made another way | Does not decide when to commit; see [commit policy](../policies/commit-policy.md) |
+| Context freshness | `context-check` (and `doctor`) report `context-index.yaml` entries marked reusable whose context file or hashed evidence is missing or changed | Read-only; refreshing context means re-reviewing it |
 | Production | No production stage or L7 tool registration | External production integration is intentionally unsupported |
 
 The caller, adapter code, tool registrations, configuration, and database form one local trust boundary. Direct Python, shell, model-provider, or database access outside these APIs bypasses the controls. Use process isolation, authenticated approval services, least-privilege credentials, and durable infrastructure before shared autonomous execution.
@@ -65,7 +67,7 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py impact auth billing --
 
 `edges.json` maps a module name to the list of modules that depend on it (e.g. `{"auth": ["billing"], "billing": ["invoicing"]}`); `impact` walks that graph from the given modules and returns the full affected set. The runtime does not discover these edges itself — supply them from `module-context.yaml`'s `dependencies` field or another source of truth.
 
-Default state lives under `.agent/runtime/runs/` (git-tracked; paths inside are stored relative so the store resolves on any checkout). Put `--store-dir /path/to/runs` before the subcommand to select another store directory. Invalid input and denied transitions return a nonzero exit code and leave the previous stage intact. `BLOCKED` results can be retried within budget; unknown stage strings are rejected.
+Default state lives under `.agent/state/runs/` (committed; paths inside are stored relative, with `/`, so the store resolves on any checkout and OS). Command output is a compact summary (`run_id`, `stage`, `next_stage`, per-stage status, active task, blockers) to keep agent context small; add `--full` (before or after the subcommand) for the complete record, e.g. `cli.py show RUN_ID --full`. Put `--store-dir /path/to/runs` before the subcommand to select another store directory. Invalid input and denied transitions return a nonzero exit code and leave the previous stage intact. `BLOCKED` results can be retried within budget; unknown stage strings are rejected.
 
 ## Routes and gates
 
@@ -105,9 +107,13 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py approve RUN_ID --gate 
 ```
 
 All three conditions must already be true on evidence recorded on the run — nothing is inferred:
-- `work-item-level-classifier` classified the item `TASK_ONLY`
+- `work-item-level-classifier`'s own result (not another skill's) classified the item `TASK_ONLY`
 - the reviewed scope is exactly one file
-- `technical-readiness-verifier`'s own verdict is `TECHNICAL_READY`
+- `technical-readiness-verifier`'s own result says `TECHNICAL_READY`
+
+Each skill's result is kept per stage in `skill_results`, so both verdicts can be
+recorded at the same stage without the second overwriting the first. Both skills
+are also eligible at CONTEXT, so an `existing_task` run can qualify.
 
 It never applies to `release` or `uat`. It records the approval under the fixed synthetic approver `runtime:auto` (not a human's `--by` identity) so the audit trail can tell an automated approval from a real one at a glance.
 
@@ -125,7 +131,7 @@ Register trusted tools with `ToolRegistry.register(name, handler, capability='L0
 
 `--dry-run` suppresses side-effecting gateway calls and returns an explicit simulated result. Local workflow state, audit, and timing are still recorded; read-only tools still execute. Native side-effecting tools are denied in dry-run; use the gateway to simulate effects. It cannot suppress direct side effects performed by a handler outside the gateway. Do not present simulated results as live verification.
 
-Default limits are two retries after the initial attempt, 900 seconds per adapter attempt, and 50 tool calls per task. Retries are explicit calls, not an automatic loop. Use a managed process supervisor for hard timeouts and process termination. Budget errors, task failures, and tool errors are recorded; secrets are masked on a best-effort basis.
+Default limits are two retries after the initial attempt, 900 seconds per adapter attempt, and 50 tool calls per task. `skill_budgets` in `platform.json` raises them for skills whose real work is longer (implementation 7200s/4 retries, QA 3600s/3, review and previews 1800s); a run-level `adjust-budget` override still wins. Retries are explicit calls, not an automatic loop. Use a managed process supervisor for hard timeouts and process termination. Budget errors, task failures, and tool errors are recorded; secrets are masked on a best-effort basis.
 
 After explicit operator authorization, extend a stopped run's budgets without
 resetting its attempts or changing global policy:
@@ -163,9 +169,14 @@ merges `config/hooks.json` into `.claude/settings.json`, preserving existing set
 and hooks, and is a no-op when already present; then run `doctor` and restart the
 Claude session. The tool hook checks the active task,
 pins, approvals, timeout, permissions, complete command arguments, and document/code
-write paths before Bash/Write/Edit/NotebookEdit calls. With no active marker, normal
-ad hoc use is unaffected. Unreadable markers, missing state, and internal gate errors
-deny matched calls until the operator diagnoses and recovers the task.
+write paths before Bash/Write/Edit/NotebookEdit calls. With no active marker, Write/Edit/
+NotebookEdit into project code are denied while any run is `RUNNING`/`BLOCKED` (the
+message names the `task-start` to run); documents under `agentic/data/` and `.agent/`,
+files outside the project, and Bash stay allowed, and with no open run nothing is
+enforced except the ledger's write protection. Only a governed pass returns `allow`;
+everything else defers to the host's normal permission prompts. Unreadable markers,
+missing state, and internal gate errors deny matched calls until the operator
+diagnoses and recovers the task.
 
 The CLI, tool gate, session hook, compaction hook, and stop hook share one path
 definition. CLI task markers are reserved exclusively and replaced atomically;
@@ -187,46 +198,29 @@ invocation still needs one observed session.
 
 ## Cross-agent-platform handoff
 
-Stored beside this runtime's governed-run store under `.agent/`, and compatible with
+`.agent/HANDOFF.md` and `.agent/sessions/*.md` are plain Markdown, compatible with
 [ishipu/agent-handoff](https://github.com/ishipu/agent-handoff)'s file format (a
-Python-native port here, not a Node dependency): `.agent/HANDOFF.md` and
-`.agent/sessions/*.md` are plain Markdown, git-tracked, so any agent platform —
-Claude Code, Codex, or another tool that speaks the same convention — can pick up
-where a different one left off after `git pull`, with no server and no shared
-runtime. The governed-run ledger sits beside them in `.agent/runtime/`
-(active-task pointer, `runs/*.json`, route cache), also git-tracked, and each
-session record carries a `## Runtime` section rendering that run's full ledger
-(stages and results, every approval with its comment, timing per skill,
-attempts, budget overrides, context hashes, skill pins, checkpoints, every audit
-event with its redacted payload, tool calls). The pointer stores its store
-directory relative to itself and each run stores `metadata.repo` relative to
-the store, so `git pull` on another machine resumes the same run. Only
-`*.lock`, `*.tmp`, `logs/`, and `repair-marker` backups are gitignored. Native
-tool writes into `.agent/runtime/` are denied, so the ledger changes only through
-the runtime; checkpoints store only the metadata keys that changed since the
-previous one; the Stop hook keeps one session record per Claude session. Git provides no cross-machine
-lock: finish and push on one machine before resuming on another.
+Python-native port here, not a Node dependency), so Claude Code, Codex, or another
+tool that speaks the same convention can pick up where a different one left off.
+`init_project.py` scaffolds `.agent/`, `.claude/skills/agent-handoff/SKILL.md`, and
+`.codex/skills/agent-handoff/SKILL.md` on every install, regardless of `--agent`.
 
-`init_project.py` scaffolds `.agent/`, `.claude/skills/agent-handoff/SKILL.md`,
-and `.codex/skills/agent-handoff/SKILL.md` on every install, regardless of the
-chosen `--agent`, so a Codex user can join a Claude-installed project (or vice
-versa) without reinstalling.
-
-Before starting work, read the current handoff state:
+Before starting work (the `SessionStart` hook does this for Claude Code):
 
 ```sh
+git pull
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py pickup
 ```
 
-Prints a condensed pickup note (~4KB cap): the HANDOFF header, a one-line Runtime
-summary, and Task/Completed/Blockers/Decisions/Next Action. The latest
-`.agent/sessions/*.md` entry is added only when it differs from HANDOFF, and a
-note about a different run than the active task is flagged `STALE HANDOFF`.
-`pickup --full` prints both files verbatim. Claude Code gets the condensed note
-automatically in the `SessionStart` hook's `additionalContext`; `pickup` is for
-hookless CLIs (including Codex) or manual use.
+`pickup` prints a condensed note (~4KB cap): the HANDOFF header, a one-line Runtime
+summary, and Task/Completed/Blockers/Decisions/Next Action. The latest session record
+is added only when it differs from HANDOFF, and a note about a different run than the
+active task is flagged `STALE HANDOFF`. `pickup --full` prints both files verbatim.
 
-When finishing a work session, record it:
+HANDOFF is rewritten from the ledger at every `task-finish`/`task-fail` (task, what
+finished with which status and evidence, blockers, the result's next step), so the
+next agent can continue even if a session crashes or never closes. When finishing a
+work session, add the human-level summary:
 
 ```sh
 python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \
@@ -239,49 +233,107 @@ python3 agentic/kit/runtime/python/agentic_runtime/cli.py close-session \
   --next-action "Implement retry handling"
 ```
 
-`--agent` is exactly `claude` or `codex` (matching upstream's own restriction, so
-these files stay valid input to the real `agent-handoff` CLI too). `--status` is
-one of `RUNNING`/`BLOCKED`/`COMPLETED`/`CANCELLED` and is required -- there is no
-default, so a hookless close can't silently claim `COMPLETED` for a session that
-didn't finish. Structured fields, not one free-form summary: `--agent`/`--status`/
-`--task`/`--completed` are required; the rest are optional but each gets its own
-heading in the written files, so a picking-up agent reads a specific field instead
-of parsing prose. The git-configured
-operator (`git config user.name`/`user.email`) is captured automatically
-alongside the `claude`/`codex` platform tag, since more than one person can
-drive either platform on a shared project.
+`--agent` is exactly `claude` or `codex` (upstream's restriction). `--status` is
+required, so a hookless close cannot silently claim `COMPLETED`. The git-configured
+operator is captured beside the platform tag. The session record carries a Runtime
+section (stages, approvals, timing, attempts, pins, the latest checkpoint, the last 25
+audit events, tool-call counts) and a `## Commits` section derived from git: every
+commit since the previous session record's HEAD, each tagged with its
+`Commit-Trigger`/`Work-Item`/`Task` trailers, or `[no Commit-Trigger]`. The `Stop` hook
+keeps one record per Claude session and writes it only while a governed task is active.
 
-This rewrites `.agent/HANDOFF.md` and appends a new
-`.agent/sessions/<timestamp>-<agent>.md`. Claude Code does this automatically via
-the `Stop` hook whenever a governed task is active (never blocks `Stop`, fails
-open on error); on a hookless CLI, run `close-session` yourself before ending
-the session.
+## Cross-machine work
 
-Both files also get a `## Commits` section derived from git, not from the
-caller: every commit since the previous session record's HEAD (the last 20 when
-there is no usable previous record), each tagged with its `Commit-Trigger`,
-`Work-Item`, and `Task` trailers, or `[no Commit-Trigger]` for a commit made
-outside the [commit policy](../policies/commit-policy.md).
+Agent state is committed with the project, in a layout where git can always merge it:
+
+```text
+.agent/
+├── HANDOFF.md        local copy of the newest handoff (gitignored)
+├── sessions/*.md     committed, one file per session
+├── state/            committed, append-only
+│   ├── runs/<RUN>/events/*.json    one file per change; state = replay
+│   ├── claims/<RUN>/*.json         who holds the run
+│   └── handoffs/*.md               one file per handoff note (newest 30 kept)
+└── local/            gitignored: active-task pointer, clone id, route cache
+```
+
+Nothing is ever edited in place (only added, or deleted by compaction), so two
+machines that both worked since their last pull merge with a plain `git pull` --
+no conflicts in the ledger. Event stamps never go backwards within a run, so a
+machine with a lagging clock cannot reorder history.
+
+State reaches the branch three ways: every task end (and `cancel`, `recover`,
+completion, `resume`) makes a state-only commit (`chore(agent): ...`,
+`Commit-Trigger: agent-state`, `git commit --only` so nothing else you staged is
+included; `auto_commit_state` in `config/state.json` turns it off); `cli.py commit`
+includes pending state in the task's own commit; and `handoff` commits everything.
+Nothing is pushed except by `handoff`.
+
+**Switching machines:**
+
+```sh
+# machine A, before leaving
+cli.py handoff                 # handoff note, frees A's claim and task pointer, commits all work (WIP included), pushes
+# machine B
+cli.py resume RUN_ID           # git pull --ff-only, claim, adopt the active task, refresh HANDOFF.md
+```
+
+**Claims.** The first `task-start` on a run claims it for this clone
+(`.agent/state/claims/`) and commits the claim at once; the clone keeps it across
+tasks (renewed at every task start and end) until the run completes or is
+cancelled, or `handoff` releases it for the next machine. Another machine sees
+the claim as soon as any later commit of this clone is pushed and pulled. While
+another clone's unexpired claim is visible here, run-changing commands
+(`task-start`, `approve`, `transition`, `context`, `task-finish`, ...) are refused
+with the holder's name. `resume --takeover --reason "..."` (or `claim --takeover`)
+records a takeover, with the previous holder, in the claim history; the old
+clone's own commands are refused once that claim reaches it. A claim expires
+after `claim_ttl_seconds` (default one day) rather than detecting a dead machine;
+an expired claim is taken over automatically, with the expiry as the recorded
+reason. `handoff` also clears this clone's active-task pointer, and `resume`
+restarts the adopted task's time budget (attempts are kept).
+
+`SessionStart` and `pickup` report other clones' claims, commits waiting upstream
+(`git fetch`, disable with `fetch_on_session_start`), unpushed commits, and
+uncommitted agent state.
+
+```sh
+cli.py claims                 # who holds which run
+cli.py claim|release RUN_ID   # manual claim control
+cli.py handoff [--run RUN_ID] [--no-push]
+cli.py resume RUN_ID [--takeover --reason "..."] [--no-pull]
+```
+
+A project on the previous layout (one rewritten `.agent/runtime/runs/<RUN>.json` per
+run, committed `HANDOFF.md`) converts with `cli.py migrate-state`: each run becomes
+one snapshot event (finished runs compacted), the pointer and route cache move to
+`.agent/local/`, `.gitignore` gains the local-file lines, and the result is staged
+for you to review and commit. Other clones pull that commit, then run
+`migrate-state` once for their local files.
 
 ## Commits
 
 ```sh
-python3 agentic/kit/runtime/python/agentic_runtime/cli.py commit-message \
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py commit \
   --type fix --scope billing --subject "round tax per line item" \
   --body "Totals drifted by a cent on multi-line invoices." \
-  --trigger task-finish --work-item BUG-7 --task T-2 --run RUN_ID | git commit -F -
-python3 agentic/kit/runtime/python/agentic_runtime/cli.py record-commit RUN_ID
+  --trigger task-finish --work-item BUG-7 --task T-2 --run RUN_ID \
+  --path src/billing/tax.py --trailer "Co-Authored-By: Agent <agent@example.com>"
 ```
 
-`commit-message` rejects unknown types/triggers, a header over 72 characters, and a
-trailing period. `record-commit` reads the commit from the run's repo and refuses
-one without a valid `Commit-Trigger` trailer. Neither command commits or pushes.
+`commit` rejects unknown types/triggers, a header over 72 characters, a trailing
+period, and spoofed traceability trailers before anything is staged; then stages
+exactly the `--path` files, runs `git commit -F` with hooks, reports a hook failure,
+and records the commit in the run. `commit-message` prints the same message for
+preview; do not pipe it into `git commit`. `record-commit RUN_ID` audits a commit made
+another way and refuses one without a valid `Commit-Trigger` trailer. Nothing here
+pushes a branch.
 
 ## Routing-decision cache
 
 Separate from `agentic/data/project-context/` (discovered facts about the target
-codebase) and from the governed-run store: a small git-tracked cache
-(`.agent/runtime/route-cache.json`) that lets a session skip
+codebase) and from the governed-run store: a small shared cache
+(`.agent/local/route-cache.json`, machine-local; each clone builds its own) that lets a session skip
 re-reading `AGENTS.md`'s matched `workflows/*.md`, a persona `AGENT.md`, and
 `SKILL.md` files in full for a (work type, project type, module) triple it has
 already routed before.
@@ -368,7 +420,12 @@ recovery artifact. It is an operator acknowledgment, not automatic worker termin
 
 A cancelled run is terminal. Recovery applies to an active marker left by an interrupted worker; stop that worker first. Recovery clears the marker and records interruption, without replaying a call or resetting attempt counts. Callbacks already running may finish externally even after cancellation; late results are not accepted.
 
-Read the [upgrade notes](../../ADOPTION.md#upgrade-an-existing-installation) before opening old state. The per-run JSON files carry no schema version; a mismatched shape simply won't match the current WorkflowRun fields, and does not turn old approvals into current authorization.
+Runs started before stored hashes became OS-portable (native path separator, raw
+CRLF bytes) can be re-pinned with `migrate-pins RUN_ID --reason "..."`: it succeeds
+only if every recorded pin equals the old-algorithm digest of the current content,
+i.e. nothing actually changed, and records `PINS_MIGRATED`.
+
+Read the [upgrade notes](../../ADOPTION.md#reinstall-upgrade-and-recover) before opening old state. The per-run JSON files carry no schema version; a mismatched shape simply won't match the current WorkflowRun fields, and does not turn old approvals into current authorization.
 
 ## Verification
 

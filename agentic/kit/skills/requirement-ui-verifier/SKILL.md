@@ -9,7 +9,7 @@ Use the shared [handoff contract](../RESULT-CONTRACT.md).
 
 ## Inputs
 
-Requirement/SRS IDs, UI designs or implementation, and relevant state/flow evidence.
+Requirement/SRS IDs, UI designs (project mockups indexed at `agentic/data/project-context/ui/*/UI-INDEX.md` when present) or implementation, and relevant state/flow evidence.
 
 ## Procedure
 

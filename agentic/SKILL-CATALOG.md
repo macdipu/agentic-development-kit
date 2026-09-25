@@ -1,5 +1,22 @@
 # Skill Catalog
 
+## Tiers
+
+Not every skill runs on every work item. The **core** tier is the minimum path a
+governed run takes; **on-demand** skills run only when classification, impact, or
+missing context calls for them. Skipping an on-demand skill is correct, not a gap.
+
+| Tier | Skills | When |
+|---|---|---|
+| Core | `prompt-intake-adapter` or `document-intake-adapter`; `baseline-verifier`; `business-requirement-analyzer` (feature) or `change-impact-analyzer` (CR/bug/hotfix); `technical-readiness-verifier`; `work-item-level-classifier`; `implementation-agent`; `code-review-agent`; `automated-qa-agent`; `release-readiness-agent` | Every governed run. The classifier's `TASK_ONLY` verdict plus the verifier's `TECHNICAL_READY` verdict (each recorded by that skill) are what `approve --auto` checks. |
+| Discovery (on-demand) | `project-discovery-agent`, `architecture-reverse-engineer`, `api-contract-discovery-agent`, `database-discovery-agent`, `user-flow-discovery-agent`, `runtime-discovery-agent`, `history-analysis-agent`, `requirement-reconstruction-agent`, `test-baseline-agent`, `brownfield-risk-analyzer` | Only for the module/feature whose context is `MISSING` or `STALE` (`cli.py context-check`). |
+| Design (on-demand) | `srs-generator`, `requirement-ui-verifier`, `technical-architecture-planner`, `technical-spec-generator`, `adr-generator` | When requirements, a screen, or an architectural decision is actually new. |
+| Planning (on-demand) | `sprint-planner`, `sprint-readiness-verifier`, `epic-verifier`, `task-breakdown-agent`, `effort-estimation-agent` | Only when the classifier says `STORY_TASK`/`EPIC_STORY_TASK` or sprint handling is not `NO_REPLAN`. |
+| Preview (on-demand) | `device-preview-agent`, `web-preview-agent` | When visual evidence is needed. |
+| Routing | `agentic-sdlc-orchestrator`, `intake-change-classifier` | Coordinates the above; usually not a separate task. |
+
+## Skills
+
 - `adr-generator` - Create ADRs only for significant architecture decisions, including alternatives, consequences, risks, and status.
 - `agentic-sdlc-orchestrator` - Coordinate Agentic SDLC workflows for greenfield and brownfield projects. Use to normalize work, load context, classify work and planning level, decide whether sprint planning is required, select specialist skills, enforce workflow state and approvals, and route Features, CRs, bugs, hotfixes, technical changes, and existing tasks through the minimum necessary lifecycle.
 - `api-contract-discovery-agent` - Recover existing API routes, contracts, auth, validation, consumers, and implementations from code, specs, clients, tests, and runtime evidence.

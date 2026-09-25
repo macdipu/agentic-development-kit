@@ -14,4 +14,6 @@ Validation uses Python 3.10+ and its standard library, including behavioral runt
 
 Installation supports instruction-only and local-harness modes, preserves host configuration, and includes a `doctor` command. The [production readiness contract](agentic/kit/runtime/production-readiness.md) adds staged evidence checks for host deployment infrastructure.
 
+Agent state (handoff notes, run ledger, claims) is committed with the project in an append-only layout that `git pull` always merges, so work moves between machines and between Claude Code and Codex with normal pushes; `cli.py handoff` / `cli.py resume` switch machines mid-task. See [cross-machine work](agentic/kit/runtime/README.md#cross-machine-work).
+
 The harness enforces local workflow rules for trusted adapters. Production execution, authenticated human identity, process isolation, and external service integrations require additional infrastructure; see the [capability matrix](agentic/kit/runtime/README.md#capability-matrix).

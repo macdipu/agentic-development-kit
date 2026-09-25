@@ -22,10 +22,11 @@ agentic/
     ├── project-context/                # per-project discovery cache + generated feature docs
     └── work-items/                       # freeform task docs (not templated feature artifacts)
 
-.agent/                                # repo root — agent state, git-tracked
-├── HANDOFF.md, sessions/*.md          # cross-agent handoff notes (full ## Runtime per session)
-└── runtime/                           # active-task pointer, runs/*.json ledger, route cache
-                                       # (*.lock, *.tmp, logs/ gitignored)
+.agent/                                # repo root — agent state (see runtime README)
+├── HANDOFF.md                         # local copy of the newest handoff (gitignored)
+├── sessions/*.md                      # committed session records
+├── state/                             # committed, append-only: runs/, claims/, handoffs/
+└── local/                             # gitignored: active-task pointer, clone id, route cache
 ```
 
 Never put generated or per-project content in the kit folders above `data/`; never put skill/template/config source in `data/`. See `agentic/data/README.md` for what goes in each data subfolder.

@@ -23,6 +23,13 @@ UX, and building/launching/visually verifying the app on an Android emulator,
 iOS simulator, or a requested connected device. Consumes backend contracts;
 does not define them.
 
+## UI Reference
+
+Before planning or implementing a screen, read the task's `UI Reference` and the mapped
+mockup (`screen.png`, `code.html`) plus the design tokens under
+`agentic/data/project-context/ui/`. BRD defines behavior, the mockup defines layout/style;
+mockup-only elements are not scope. Visual preview compares against `screen.png`.
+
 ## Composed Skills
 
 - [`implementation-agent`](../../skills/implementation-agent/SKILL.md) (stage `IMPLEMENTATION`) -- write the actual mobile code change.

@@ -22,13 +22,15 @@ Rules for both:
 - Stage paths explicitly (`git add <paths>`); never `git add -A`/`.` blindly.
   Leave unrelated working-tree changes, and other agents' uncommitted changes,
   untouched.
-- Never stage secrets, `.env*`, or runtime lock/temp files and logs
-  (`.agent/runtime/**/*.lock`, `*.tmp`, `logs/` — gitignored). `.agent/HANDOFF.md`,
-  `.agent/sessions/*.md`, and the run ledger under `.agent/runtime/` may be
-  committed; approval comments and redacted audit payloads land in git with them.
-- Never push, force-push, amend a pushed commit, rebase shared history, or skip
-  hooks (`--no-verify`) without an explicit user ask. Committing does not imply
-  pushing.
+- Never stage secrets, `.env*`, or `.agent/local/`. Agent state under `.agent/state/`
+  and `.agent/sessions/` is committed: `cli.py commit` includes it in the task's commit,
+  and task ends make a state-only commit (`Commit-Trigger: agent-state`). Approval
+  comments and redacted audit payloads reach the remote with it.
+- Never push a branch, force-push, amend a pushed commit, rebase shared history, or
+  skip hooks (`--no-verify`) without an explicit user ask. Committing does not imply
+  pushing. `cli.py handoff` pushes because the user runs it to switch machines.
+- Two runtime triggers exist besides the two above: `agent-state` (state-only commit at
+  task end) and `handoff` (work in progress committed to continue on another machine).
 - Committing is not approval: it never satisfies a technical, release, or UAT gate.
 
 ## Message format
@@ -58,30 +60,40 @@ Commit-Trigger: task-finish
   header already says it all.
 - Trailers: `Commit-Trigger` is required. `Work-Item`, `Task`, `Run` are required
   whenever they exist for the work. Platform attribution trailers (for example
-  `Co-Authored-By`) go after these.
+  `Co-Authored-By`) go after these, in the same block: a blank line between them
+  starts a new paragraph, and git no longer reads `Commit-Trigger` as a trailer.
 
-Build the message with the runtime so the format is checked rather than
-remembered:
+Commit through the runtime so the format is checked before git runs:
 
 ```sh
-python3 agentic/kit/runtime/python/agentic_runtime/cli.py commit-message \
+python3 agentic/kit/runtime/python/agentic_runtime/cli.py commit \
   --type feat --scope auth --subject "add rotating refresh tokens" \
   --body "Access tokens expired mid-session; ..." \
-  --trigger task-finish --work-item FEAT-12 --task T-3 --run run_8f2c \
-  | git commit -F -
+  --trigger task-finish --work-item FEAT-12 --task T-3 --run RUN_ID \
+  --path src/auth.ts --path src/api.ts \
+  --trailer "Co-Authored-By: Agent <agent@example.com>"
 ```
+
+It rejects an invalid message with a nonzero exit before anything is staged,
+stages exactly the `--path` files (or commits what is already staged), runs
+`git commit -F` with hooks, reports a hook failure instead of hiding it, and
+records the commit in the run. Do not pipe `commit-message` into
+`git commit -F -`: when validation fails the pipe still runs git, and whatever
+reached stdin becomes the commit (an error text once became a real commit
+subject that way). `commit-message` remains for previewing a message.
 
 ## Logging
 
 Every commit is logged in two places:
 
-1. **Session record (git-tracked, cross-platform).** `close-session` (and the
-   `Stop` hook) writes a `## Commits` section into `.agent/HANDOFF.md` and the new
-   `.agent/sessions/*.md` record: every commit since the previous session
-   record's HEAD, each tagged with its `Commit-Trigger`, `Work-Item`, and `Task`
-   trailers. Commits missing the trailer show `[no Commit-Trigger]`, which flags a
-   commit made outside this policy.
-2. **Run audit (local, when a governed run exists).** Right after committing, run
-   `cli.py record-commit RUN_ID [--rev HEAD]`. It appends a `COMMIT_RECORDED`
-   event with the sha, subject, and trailers to the run's audit log, and refuses a
-   commit without a valid `Commit-Trigger`.
+1. **Handoff and session record (committed, cross-platform).** `task-finish`,
+   `close-session`, and the `Stop` hook write a `## Commits` section into
+   `.agent/HANDOFF.md` (and the session record): every commit since the previous
+   session record's HEAD, each tagged with its `Commit-Trigger`, `Work-Item`, and
+   `Task` trailers. Commits missing the trailer show `[no Commit-Trigger]`, which
+   flags a commit made outside this policy.
+2. **Run audit (when a governed run exists).** `cli.py commit --run RUN_ID` records
+   the commit itself (the audit event rides the next state commit). For a commit
+   made another way, run `cli.py record-commit RUN_ID [--rev HEAD]`.
+   Both append a `COMMIT_RECORDED` event with the sha, subject, and trailers, and
+   refuse a commit without a valid `Commit-Trigger`.

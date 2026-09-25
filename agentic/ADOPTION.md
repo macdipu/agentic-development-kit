@@ -27,11 +27,13 @@ this boundary.
 Every install also scaffolds `.agent/HANDOFF.md`, `.agent/sessions/`, and
 `.claude/skills/agent-handoff/` + `.codex/skills/agent-handoff/` (compatible
 with [ishipu/agent-handoff](https://github.com/ishipu/agent-handoff)) regardless
-of the chosen agent, so any platform can pick up or hand off a session from
-what's committed to git. The runtime ledger lives beside them in
-`.agent/runtime/` (active-task pointer, `runs/*.json`, route cache), also
-git-tracked with repo-relative paths, so a governed run resumes on another
-machine after `git pull`. Only lock/temp files and `logs/` are gitignored.
+of the chosen agent, so any platform can pick up or hand off a session. The
+runtime ledger lives in `.agent/state/`, committed with the project in an append-only
+layout (files added, never edited) that `git pull` merges without conflicts; per-run
+claims there are the cross-machine lock, and machine-local files stay in the
+gitignored `.agent/local/` -- see [cross-machine work](kit/runtime/README.md#cross-machine-work).
+Stored paths use `/` and hashes are line-ending-normalized, so Windows, macOS, and
+Linux clones resume the same run.
 
 ## What installation does
 
@@ -92,9 +94,23 @@ python3 agentic/kit/scripts/init_project.py --target /path/to/project --project 
 ```
 
 The old kit and replaced files are retained under the host's `agentic-backups/`
-directory; the command reports the exact backup. Existing JSON configuration is
-preserved, and newly introduced configuration files receive defaults. Review new
-configuration requirements: staged validation rejects incompatible preserved settings.
+directory; the command reports the exact backup. Existing JSON configuration values
+are preserved; keys a new kit version introduces are added with their defaults (the
+report's `notes` lists them), and newly introduced configuration files receive
+defaults. Review new configuration requirements: staged validation rejects
+incompatible preserved settings.
+
+Each install records a hash of every kit file (`installation.json` `kit_files`). An
+upgrade refuses to replace kit files the project edited since then and lists them:
+upstream generic changes into the kit (host-only rules belong outside the AGENTS.md
+managed block, or under `agentic/data/`), or pass `--discard-kit-edits` (the edits
+stay in the backup).
+
+A project on the previous `.agent/runtime/` layout (one rewritten JSON per run) gets a
+note in the upgrade report: convert it with `cli.py migrate-state`, review, and commit.
+Runs started before paths and hashes became OS-portable can continue after
+`cli.py migrate-pins RUN_ID --reason "..."`, which only succeeds when no skill or
+configuration content actually changed.
 
 Finish or cancel active runs before upgrading: their code/configuration pins cannot
 be silently changed. Ordinary installation exceptions restore replaced files.
