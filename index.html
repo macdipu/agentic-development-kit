@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic Development Kit</title>
+<meta name="description" content="35 specialist skills, SDLC workflows, and a local Python harness that coordinates coding agents with explicit evidence and approval gates.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bf7'/%3E%3Cpath d='M9 22l7-12 7 12' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #fbfbfd;
+  --bg-alt: #f2f3f8;
+  --surface: #ffffff;
+  --text: #14151a;
+  --muted: #5a5e6b;
+  --border: #e3e5ec;
+  --accent: #5b5bf7;
+  --accent-soft: #ececfe;
+  --accent-2: #0ea37a;
+  --code-bg: #14151a;
+  --code-text: #e8e9ef;
+  --shadow: 0 1px 2px rgba(20,21,26,.04), 0 8px 24px rgba(20,21,26,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0e12;
+    --bg-alt: #13151b;
+    --surface: #171920;
+    --text: #eceef3;
+    --muted: #9aa0ae;
+    --border: #262933;
+    --accent: #8b8bff;
+    --accent-soft: #1f2040;
+    --accent-2: #3fd3a5;
+    --code-bg: #0a0b0e;
+    --code-text: #e8e9ef;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0e12;
+  --bg-alt: #13151b;
+  --surface: #171920;
+  --text: #eceef3;
+  --muted: #9aa0ae;
+  --border: #262933;
+  --accent: #8b8bff;
+  --accent-soft: #1f2040;
+  --accent-2: #3fd3a5;
+  --code-bg: #0a0b0e;
+  --code-text: #e8e9ef;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: "JetBrains Mono", ui-monospace, Consolas, monospace; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 600px) { .wrap { padding: 0 16px; } }
+
+/* nav */
+nav.top {
+  position: sticky; top: 0; z-index: 10;
+  backdrop-filter: saturate(180%) blur(12px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+nav.top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); }
+.brand:hover { text-decoration: none; }
+.logo { width: 28px; height: 28px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; }
+.links { display: flex; gap: 20px; margin-left: auto; align-items: center; font-size: 14px; }
+.links a { color: var(--muted); }
+.links a:hover { color: var(--text); text-decoration: none; }
+@media (max-width: 760px) { .links a.hide-sm { display: none; } }
+.theme-btn {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: grid; place-items: center;
+}
+
+/* hero */
+.hero { padding: 96px 0 72px; text-align: center; }
+.pill {
+  display: inline-flex; gap: 8px; align-items: center;
+  padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500;
+  background: var(--accent-soft); color: var(--accent);
+}
+h1 {
+  font-size: clamp(38px, 6.5vw, 68px); line-height: 1.05; letter-spacing: -0.035em;
+  margin: 22px auto 20px; max-width: 900px; font-weight: 800;
+}
+h1 .grad {
+  background: linear-gradient(100deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.lede { font-size: clamp(17px, 2vw, 20px); color: var(--muted); max-width: 720px; margin: 0 auto 36px; }
+.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 15px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+.btn:hover { text-decoration: none; border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); }
+.stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border); border-radius: 14px;
+  overflow: hidden; margin: 64px auto 0; max-width: 820px;
+}
+.stat { background: var(--surface); padding: 20px 12px; }
+.stat b { display: block; font-size: 30px; letter-spacing: -0.02em; }
+.stat span { color: var(--muted); font-size: 13px; }
+@media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+/* sections */
+section { padding: 88px 0; }
+section.alt { background: var(--bg-alt); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h2 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.025em; line-height: 1.15; margin: 10px 0 14px; }
+.sub { color: var(--muted); max-width: 680px; font-size: 17px; margin: 0 0 44px; }
+.grid { display: grid; gap: 18px; }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 900px) { .g3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .g3, .g2 { grid-template-columns: 1fr; } }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 24px; box-shadow: var(--shadow);
+}
+.card h3 { margin: 12px 0 6px; font-size: 18px; letter-spacing: -0.01em; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.ico {
+  width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent);
+  display: grid; place-items: center;
+}
+.ico svg { width: 20px; height: 20px; }
+
+/* flow */
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; justify-content: center; }
+.step {
+  flex: 1 1 150px; max-width: 200px; text-align: center; padding: 18px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; position: relative;
+}
+.step small { display: block; font-family: "JetBrains Mono", monospace; color: var(--accent); font-size: 12px; margin-bottom: 4px; }
+.step b { display: block; font-size: 15px; }
+.step span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+.arrow { display: grid; place-items: center; color: var(--muted); padding: 0 6px; }
+@media (max-width: 760px) {
+  .flow { flex-direction: column; align-items: center; }
+  .step { max-width: 100%; width: 100%; }
+  .arrow { transform: rotate(90deg); padding: 4px 0; }
+}
+.gate {
+  display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent-2) 16%, transparent); color: var(--accent-2);
+}
+
+/* skills */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+.tab {
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+  padding: 7px 14px; border-radius: 999px; font: 500 14px Inter, sans-serif; cursor: pointer;
+}
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.skill {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+}
+.skill code { font-size: 13px; font-weight: 500; color: var(--text); }
+.skill p { margin: 6px 0 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.skill .tag { float: right; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+
+/* personas */
+.personas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+@media (max-width: 900px) { .personas { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 520px) { .personas { grid-template-columns: repeat(2, 1fr); } }
+.persona { text-align: center; padding: 22px 10px; }
+.persona b { display: block; font-size: 22px; letter-spacing: -0.02em; color: var(--accent); }
+.persona span { font-size: 13px; color: var(--muted); }
+
+/* code */
+.term {
+  background: var(--code-bg); color: var(--code-text); border-radius: 14px; overflow: hidden;
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.term-head { display: flex; gap: 6px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.08); align-items: center; }
+.term-head i { width: 11px; height: 11px; border-radius: 50%; background: #3a3d47; display: block; }
+.term-head em { margin-left: 10px; font-style: normal; font-size: 12px; color: #8a8f9c; font-family: "JetBrains Mono", monospace; }
+.term pre { margin: 0; padding: 18px 20px; overflow-x: auto; font-size: 13.5px; line-height: 1.75; }
+.term .c { color: #7c8190; }
+.term .p { color: #8b8bff; user-select: none; }
+
+/* modes */
+.mode h3 { display: flex; align-items: center; gap: 10px; }
+.mode ul { margin: 14px 0 0; padding-left: 18px; color: var(--muted); font-size: 15px; }
+.mode li { margin: 4px 0; }
+.chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+
+/* boundaries */
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td:nth-child(3) { color: var(--muted); }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+@media (max-width: 640px) { td:first-child { white-space: normal; } }
+
+footer { padding: 40px 0 56px; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="logo"><svg width="16" height="16" viewBox="0 0 32 32"><path d="M8 23l8-14 8 14" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Agentic Development Kit
+    </a>
+    <div class="links">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#skills">Skills</a>
+      <a class="hide-sm" href="#harness">Harness</a>
+      <a class="hide-sm" href="#start">Get started</a>
+      <a href="https://github.com/macdipu/agentic-development-kit">GitHub</a>
+      <button class="theme-btn" id="theme" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="pill">For Claude Code, Codex, and any CLI agent</span>
+    <h1>Software delivery for coding agents, <span class="grad">with evidence and approval gates</span></h1>
+    <p class="lede">The kit gives your coding agent 35 specialist skills, SDLC workflows, and a local Python harness. Work moves from request to release, and every step leaves a record. The harness blocks tool calls the active task hasn't been permitted to make.</p>
+    <div class="cta">
+      <a class="btn primary" href="#start">Install the kit</a>
+      <a class="btn" href="https://github.com/macdipu/agentic-development-kit">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.2-3.1-.1-.4-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.6.2 2.8.1 3.2.8.8 1.2 1.9 1.2 3.1 0 4.7-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>35</b><span>specialist skills</span></div>
+      <div class="stat"><b>6</b><span>SDLC workflows</span></div>
+      <div class="stat"><b>6</b><span>delivery personas</span></div>
+      <div class="stat"><b>0</b><span>third-party deps</span></div>
+    </div>
+  </div>
+</header>
+
+<section class="alt" id="why">
+  <div class="wrap">
+    <div class="eyebrow">Why</div>
+    <h2>A process for agents to follow, and a record of what they did</h2>
+    <p class="sub">A coding agent will write code as soon as you ask. The kit makes it read the existing context first, reuse what the project already has, and stop for a human decision where one is required.</p>
+    <div class="grid g3">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/><path d="M8 7h8M8 11h6"/></svg></div>
+        <h3>Context before code</h3>
+        <p>Agents read <code>agentic/data/project-context/</code> first. They refresh only the stale or missing module and never re-audit the whole repository for each task.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Explicit human gates</h3>
+        <p>Approval is never inferred. Release and UAT gates need an explicit decision tied to the scope revision. Only technical gates can be auto-approved.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
+        <h3>End-to-end traceability</h3>
+        <p>Each step links to the one before it: request, requirements, design, tasks, implementation, QA, release. Commits carry <code>Work-Item</code>, <code>Task</code> and <code>Run</code> trailers.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h12"/></svg></div>
+        <h3>Minimum useful lifecycle</h3>
+        <p>A work item gets the planning level it needs: Epic/Story/Task, Story/Task, Task-only, or execute-existing. Full sprint planning happens only when it's needed.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
+        <h3>Resume anywhere</h3>
+        <p>Run state, handoff notes and session records live in git-tracked <code>.agent/</code>. After a <code>git pull</code>, another machine or another agent picks up the run where it stopped.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M12 8v8"/></svg></div>
+        <h3>Greenfield or brownfield</h3>
+        <p>Project type is set per work item. New features run the full lifecycle. Changes to existing code start from the code, tests and data already there, and recover a baseline only where one is missing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="eyebrow">How it works</div>
+    <h2>One path from prompt to release</h2>
+    <p class="sub">A prompt or a document (<code>FEATURE.md</code>, <code>CR.md</code>, <code>BUG.md</code>, <code>HOTFIX.md</code>) becomes a canonical work item. The orchestrator then picks the next skill from the work type, stage, context, impact, policy and approvals.</p>
+    <div class="flow">
+      <div class="step"><small>01</small><b>Intake</b><span>Prompt or doc to work item</span></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><small>02</small><b>Requirements</b><span>SRS, rules, acceptance</span><span class="gate">GATE</span></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><small>03</small><b>Design</b><span>HLD, LLD, ADRs</span><span class="gate">GATE</span></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><small>04</small><b>Tasks</b><span>Level + sprint handling</span></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><small>05</small><b>Implement</b><span>Via persona, scoped tools</span></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><small>06</small><b>QA</b><span>Review + test evidence</span><span class="gate">GATE</span></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><small>07</small><b>Release</b><span>Readiness + UAT</span><span class="gate">HUMAN</span></div>
+    </div>
+    <div class="grid g3" style="margin-top:40px">
+      <div class="card"><h3>Workflows</h3><p><code>greenfield</code>, <code>brownfield</code>, <code>new-feature</code>, <code>change-request</code>, <code>bug-hotfix</code>, <code>sprint-planning</code>, all dispatched through <code>routing.md</code>.</p></div>
+      <div class="card"><h3>Routing cache</h3><p>Route decisions are cached per work type, project type and module. A cache hit on the current kit version skips re-reading the workflow, persona and skill docs.</p></div>
+      <div class="card"><h3>Result contract</h3><p>Every specialist returns the same handoff shape: status, evidence and blockers. The harness checks that shape before the run moves to the next stage.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="skills">
+  <div class="wrap">
+    <div class="eyebrow">Skill catalog</div>
+    <h2>35 specialists, one per job</h2>
+    <p class="sub">Each skill is a SHA-256-pinned instruction file with its stage eligibility declared. The orchestrator uses a skill only in the stages where it applies.</p>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="skills" id="skill-list"></div>
+  </div>
+</section>
+
+<section id="personas">
+  <div class="wrap">
+    <div class="eyebrow">Personas</div>
+    <h2>Implementation goes through a persona</h2>
+    <p class="sub">A persona combines several skills for one kind of engineering work. The skills themselves stay separate and reusable.</p>
+    <div class="personas">
+      <div class="card persona"><b>FE</b><span>Frontend</span></div>
+      <div class="card persona"><b>Mobile</b><span>iOS / Android</span></div>
+      <div class="card persona"><b>BE</b><span>Backend</span></div>
+      <div class="card persona"><b>DB</b><span>Data &amp; integration</span></div>
+      <div class="card persona"><b>QA</b><span>Quality</span></div>
+      <div class="card persona"><b>SecOps</b><span>Security &amp; DevOps</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="harness">
+  <div class="wrap">
+    <div class="eyebrow">Local harness</div>
+    <h2>Workflow rules the harness enforces</h2>
+    <p class="sub">A pure-Python runtime owns workflow state, approvals, context freshness, budgets, checkpoints and timing. The agent's own judgment doesn't override any of these.</p>
+    <div class="grid g2">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3>PreToolUse gate</h3>
+        <p>In Claude Code, native Bash, Write, Edit and NotebookEdit calls are checked against the active task's permissions. Bash commands must match the allowlist on their full argument list.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <h3>Budgets and timing</h3>
+        <p>The harness limits attempts per scope, stage and skill, tool calls per task, and elapsed time per task. It records start, end, failure and interruption events, which you can query with <code>timing RUN_ID</code>.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <h3>Atomic run ledger</h3>
+        <p>Each run is one JSON file. The run, its checkpoint and its audit entries are committed together with write-temp plus atomic replace, under a per-run lock.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.2V4z"/></svg></div>
+        <h3>Session hooks</h3>
+        <p><code>SessionStart</code> reports unfinished work and shows the pickup note. <code>PreCompact</code> saves a checkpoint. <code>Stop</code> writes the handoff and a session record.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <div class="eyebrow">Get started</div>
+    <h2>Install in one command</h2>
+    <p class="sub">The installer stages and validates the whole kit before it replaces any host file. Text outside the kit's marked section of <code>AGENTS.md</code> and <code>CLAUDE.md</code> is left as it was, and so are unrelated settings.</p>
+
+    <div class="grid g2" style="margin-bottom:28px">
+      <div class="card mode">
+        <h3>instruction-only <span class="chip">default</span></h3>
+        <p>Installs the workflow instructions, skills, templates and configuration.</p>
+        <ul>
+          <li>No tool interception</li>
+          <li>No workflow state</li>
+          <li>Works with any agent</li>
+        </ul>
+      </div>
+      <div class="card mode">
+        <h3>local-harness <span class="chip">enforced</span></h3>
+        <p>Also sets up workflow state and the runtime ledger.</p>
+        <ul>
+          <li>Native Claude Code hooks (<code>--agent claude</code>)</li>
+          <li>CLI task protocol for Codex and other agents</li>
+          <li><code>doctor</code> checks the install</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="term">
+      <div class="term-head"><i></i><i></i><i></i><em>install.sh</em></div>
+<pre><span class="c"># from a reviewed checkout of the kit</span>
+<span class="p">$ </span>git clone https://github.com/macdipu/agentic-development-kit.git
+<span class="p">$ </span>cd agentic-development-kit
+
+<span class="c"># install into your project (brownfield | greenfield)</span>
+<span class="p">$ </span>python3 agentic/kit/scripts/init_project.py \
+    --target /path/to/project --project my-project \
+    --type brownfield --mode local-harness --agent claude
+
+<span class="c"># verify from the host root</span>
+<span class="p">$ </span>python3 agentic/kit/runtime/python/agentic_runtime/cli.py doctor
+<span class="p">$ </span>sh agentic/kit/scripts/validate-kit.sh</pre>
+    </div>
+    <p style="color:var(--muted);font-size:14px;margin-top:14px">Requires Python 3.10+ and nothing outside the standard library. CI runs on Linux and macOS with Python 3.10 and 3.13. Read the <a href="https://github.com/macdipu/agentic-development-kit/blob/main/agentic/ADOPTION.md">adoption guide</a> before installing.</p>
+  </div>
+</section>
+
+<section class="alt" id="boundaries">
+  <div class="wrap">
+    <div class="eyebrow">Boundaries</div>
+    <h2>What the harness doesn't do</h2>
+    <p class="sub">The harness is a local trust boundary for trusted adapters. Shared autonomous execution needs more infrastructure on top of it.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Area</th><th>Implemented locally</th><th>Boundary</th></tr></thead>
+        <tbody>
+          <tr><td>Approvals</td><td>Decisions tied to the scope revision, with evidence prerequisites and revocation</td><td><code>--by</code> is the operator's own claim. There is no authenticated identity or RBAC</td></tr>
+          <tr><td>Context</td><td>Hashes of scoped files detect edits and deletions</td><td>The caller chooses the files. Dependencies are not discovered automatically</td></tr>
+          <tr><td>Tools</td><td>Explicit permissions, side-effect classes, idempotency, audit</td><td>Handlers are trusted. There is no OS-level isolation</td></tr>
+          <tr><td>Persistence</td><td>Atomic per-run JSON files with a lock</td><td>Operators can write to it, so it isn't immutable audit storage. The lock covers one machine only</td></tr>
+          <tr><td>Production</td><td>No production stage and no L7 tools</td><td>Not supported on purpose</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--muted);font-size:14px;margin-top:14px">The full <a href="https://github.com/macdipu/agentic-development-kit/blob/main/agentic/kit/runtime/README.md#capability-matrix">capability matrix</a> is in the runtime guide.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Agentic Development Kit</span>
+    <span>
+      <a href="https://github.com/macdipu/agentic-development-kit">GitHub</a> &middot;
+      <a href="https://github.com/macdipu/agentic-development-kit/blob/main/agentic/SKILL-CATALOG.md">Skill catalog</a> &middot;
+      <a href="https://github.com/macdipu/agentic-development-kit/blob/main/agentic/kit/runtime/README.md">Runtime guide</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+const REPO = "https://github.com/macdipu/agentic-development-kit/blob/main/agentic/kit/skills/";
+const SKILLS = [
+  ["Intake", "prompt-intake-adapter", "Turns a developer prompt into a canonical work item. Missing requirements stay missing."],
+  ["Intake", "document-intake-adapter", "Loads and validates FEATURE.md, CR.md, BUG.md or HOTFIX.md and normalizes it."],
+  ["Intake", "intake-change-classifier", "Classifies work as a feature, CR, bug, hotfix, technical, security or discovery item."],
+  ["Intake", "work-item-level-classifier", "Chooses the smallest useful hierarchy: Epic/Story/Task down to execute-existing."],
+  ["Intake", "agentic-sdlc-orchestrator", "Routes every work type through the smallest lifecycle it needs and enforces the gates."],
+  ["Discovery", "project-discovery-agent", "Maps repo structure, modules, frameworks, build, tests and CI/CD."],
+  ["Discovery", "architecture-reverse-engineer", "Recovers the current architecture, marking each finding confirmed, inferred or unknown."],
+  ["Discovery", "api-contract-discovery-agent", "Recovers routes, contracts, auth, validation and consumers."],
+  ["Discovery", "database-discovery-agent", "Recovers schemas, relations, migrations, indexes and transaction boundaries."],
+  ["Discovery", "user-flow-discovery-agent", "Recovers screens, navigation, forms, validation and state transitions."],
+  ["Discovery", "runtime-discovery-agent", "Recovers deployment topology from config, manifests and logs."],
+  ["Discovery", "history-analysis-agent", "Mines git, PRs, issues and incidents for the reasons behind legacy code."],
+  ["Discovery", "requirement-reconstruction-agent", "Reconstructs current behavior from evidence without passing inference off as fact."],
+  ["Discovery", "test-baseline-agent", "Maps behavior to test evidence and finds coverage gaps and flaky tests."],
+  ["Discovery", "baseline-verifier", "Checks a recovered baseline before the context is marked usable."],
+  ["Discovery", "brownfield-risk-analyzer", "Assesses coupling, missing tests, unknown owners, hard-coded rules and risk."],
+  ["Requirements", "business-requirement-analyzer", "Extracts requirements, rules, actors, acceptance criteria and open questions."],
+  ["Requirements", "srs-generator", "Writes a traceable software requirements specification."],
+  ["Requirements", "requirement-ui-verifier", "Checks that requirements, SRS, UI, validation and permissions agree."],
+  ["Requirements", "change-impact-analyzer", "Traces a change through requirements, modules, APIs, DB, tests and gates."],
+  ["Design", "technical-architecture-planner", "Designs or updates the HLD, preferring the project's existing patterns."],
+  ["Design", "technical-spec-generator", "Writes the LLD, API contracts, DB impact, security and test strategy."],
+  ["Design", "adr-generator", "Writes ADRs for significant decisions only, with alternatives and consequences."],
+  ["Design", "technical-readiness-verifier", "Decides whether work is ready, conditionally ready or blocked."],
+  ["Planning", "task-breakdown-agent", "Splits verified work into FE, BE, DB, QA, DevOps and docs tasks."],
+  ["Planning", "effort-estimation-agent", "Sizes effort and uncertainty, and finds the critical path and parallel work."],
+  ["Planning", "epic-verifier", "Checks that an epic covers its approved scope, acceptance criteria and dependencies."],
+  ["Planning", "sprint-readiness-verifier", "Decides whether to commit, expedite or keep the item in the backlog."],
+  ["Planning", "sprint-planner", "Plans sprint sequencing, ownership, capacity and UAT targets when a sprint is needed."],
+  ["Build & QA", "implementation-agent", "Implements an approved task within its scope, reusing existing patterns."],
+  ["Build & QA", "code-review-agent", "Reviews the change against requirements, architecture, security and tests."],
+  ["Build & QA", "automated-qa-agent", "Evaluates build, lint, unit, integration, contract and security evidence."],
+  ["Build & QA", "web-preview-agent", "Runs the web app locally and checks it visually with screenshots."],
+  ["Build & QA", "device-preview-agent", "Builds and checks mobile apps on emulators, simulators or connected devices."],
+  ["Release", "release-readiness-agent", "Checks review, QA, UAT, migration, rollback and monitoring evidence."],
+];
+const groups = ["All", ...new Set(SKILLS.map(s => s[0]))];
+const tabs = document.getElementById("tabs");
+const list = document.getElementById("skill-list");
+function render(g) {
+  list.innerHTML = SKILLS.filter(s => g === "All" || s[0] === g).map(([grp, name, desc]) =>
+    `<a class="skill" href="${REPO}${name}/SKILL.md" style="color:inherit;text-decoration:none">
+       <span class="tag">${grp}</span><code>${name}</code><p>${desc}</p></a>`).join("");
+  [...tabs.children].forEach(b => b.setAttribute("aria-selected", b.dataset.g === g));
+}
+groups.forEach(g => {
+  const b = document.createElement("button");
+  b.className = "tab"; b.role = "tab"; b.dataset.g = g;
+  b.textContent = g === "All" ? `All (${SKILLS.length})` : g;
+  b.onclick = () => render(g);
+  tabs.appendChild(b);
+});
+render("All");
+
+const root = document.documentElement;
+try { const t = localStorage.getItem("adk-theme"); if (t) root.dataset.theme = t; } catch (e) {}
+document.getElementById("theme").onclick = () => {
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("adk-theme", root.dataset.theme); } catch (e) {}
+};
+</script>
+</body>
+</html>
