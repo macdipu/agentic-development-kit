@@ -23,6 +23,8 @@
   --code-bg: #14151a;
   --code-text: #e8e9ef;
   --shadow: 0 1px 2px rgba(20,21,26,.04), 0 8px 24px rgba(20,21,26,.06);
+  --warn: #c27c00;
+  --danger: #d93a40;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -38,6 +40,8 @@
     --code-bg: #0a0b0e;
     --code-text: #e8e9ef;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    --warn: #f0b43c;
+    --danger: #ff6b6f;
   }
 }
 :root[data-theme="dark"] {
@@ -53,6 +57,8 @@
   --code-bg: #0a0b0e;
   --code-text: #e8e9ef;
   --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  --warn: #f0b43c;
+  --danger: #ff6b6f;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -77,7 +83,8 @@ nav.top {
   border-bottom: 1px solid var(--border);
 }
 nav.top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); white-space: nowrap; }
+@media (max-width: 420px) { .brand { font-size: 14px; } nav.top .wrap { gap: 12px; } }
 .brand:hover { text-decoration: none; }
 .logo { width: 28px; height: 28px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; }
 .links { display: flex; gap: 20px; margin-left: auto; align-items: center; font-size: 14px; }
@@ -101,7 +108,7 @@ h1 {
   margin: 22px auto 20px; max-width: 900px; font-weight: 800;
 }
 h1 .grad {
-  background: linear-gradient(100deg, var(--accent), var(--accent-2));
+  background: linear-gradient(100deg, var(--accent), var(--accent-2), var(--accent));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .lede { font-size: clamp(17px, 2vw, 20px); color: var(--muted); max-width: 720px; margin: 0 auto 36px; }
@@ -147,24 +154,169 @@ h2 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.025em; line-height: 1
 }
 .ico svg { width: 20px; height: 20px; }
 
-/* flow */
-.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; justify-content: center; }
-.step {
-  flex: 1 1 150px; max-width: 200px; text-align: center; padding: 18px 12px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; position: relative;
+/* sdlc -> asdlc */
+.seg { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); margin-bottom: 28px; }
+.seg button {
+  border: 0; background: none; color: var(--muted); font: 600 14px Inter, sans-serif;
+  padding: 9px 16px; border-radius: 9px; cursor: pointer; transition: background .25s, color .25s;
 }
-.step small { display: block; font-family: "JetBrains Mono", monospace; color: var(--accent); font-size: 12px; margin-bottom: 4px; }
-.step b { display: block; font-size: 15px; }
-.step span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
-.arrow { display: grid; place-items: center; color: var(--muted); padding: 0 6px; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 1000px) { .stages { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .stages { grid-template-columns: 1fr; } }
+.flip { perspective: 1400px; }
+.flip-inner {
+  display: grid; height: 100%; transform-style: preserve-3d;
+  transition: transform .8s cubic-bezier(.2,.75,.2,1); transition-delay: calc(var(--i) * 90ms);
+}
+.asdlc-on .flip-inner { transform: rotateY(180deg); }
+.face {
+  grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.face.back { transform: rotateY(180deg); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow: var(--shadow); }
+.face .num { font: 500 12px "JetBrains Mono", monospace; color: var(--muted); display: flex; justify-content: space-between; }
+.face.back .num { color: var(--accent); }
+.face h3 { margin: 0; font-size: 17px; }
+.face p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.who { font-size: 12px; font-weight: 600; color: var(--muted); }
+.face.front .who::before { content: "\25CF  "; color: var(--warn); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chips code { font-size: 11.5px; padding: 2px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+.ctl { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 12.5px; color: var(--accent-2); font-weight: 500; }
+.shifts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 36px; }
+@media (max-width: 900px) { .shifts { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .shifts { grid-template-columns: 1fr; } }
+.shift { padding: 16px 18px; border-radius: 12px; background: var(--bg-alt); border: 1px solid var(--border); font-size: 14px; }
+.shift s { color: var(--muted); text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent); display: block; }
+.shift b { display: block; margin-top: 4px; }
+
+/* animated run */
+.pipe { position: relative; display: grid; grid-template-columns: repeat(9, 1fr); margin: 8px 0 28px; --p: 0; }
+.pipe::before, .pipe .fill { content: ""; position: absolute; left: calc(100% / 18); top: 19px; height: 3px; border-radius: 3px; }
+.pipe::before { right: calc(100% / 18); background: var(--border); }
+.pipe .fill {
+  width: calc((100% - 100% / 9) * var(--p)); background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width .7s cubic-bezier(.3,.7,.2,1), height .7s cubic-bezier(.3,.7,.2,1);
+}
+.pipe .fill::after {
+  content: ""; position: absolute; right: -6px; top: -4.5px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--accent-2); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-2) 25%, transparent);
+}
+.node { position: relative; z-index: 1; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0 2px; text-align: center; }
+.dot {
+  width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 10px; display: grid; place-items: center;
+  border: 2px solid var(--border); background: var(--surface); color: var(--muted);
+  font: 600 12px "JetBrains Mono", monospace; transition: background .3s, border-color .3s, color .3s;
+}
+.node .lbl { display: block; font-size: 13px; font-weight: 600; }
+.node .gtag { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.node .gtag::before { content: "\1F512 "; font-size: 10px; }
+.node.done .dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+.node.active .dot { border-color: var(--accent); color: var(--accent); animation: pulse 1.4s ease-out infinite; }
+.node.gate .dot { border-color: var(--warn); color: var(--warn); animation: pulse-warn 1.4s ease-out infinite; }
+.node.fail .dot { border-color: var(--danger); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); animation: shake .45s; }
+.node.gate .gtag { color: var(--warn); font-weight: 600; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
+@keyframes pulse-warn { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 50%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @media (max-width: 760px) {
-  .flow { flex-direction: column; align-items: center; }
-  .step { max-width: 100%; width: 100%; }
-  .arrow { transform: rotate(90deg); padding: 4px 0; }
+  .pipe { grid-template-columns: 1fr; gap: 6px; }
+  .pipe::before, .pipe .fill { left: 18.5px; top: 20px; width: 3px; height: auto; }
+  .pipe::before { right: auto; bottom: 20px; }
+  .pipe .fill { width: 3px; height: calc((100% - 40px) * var(--p)); }
+  .pipe .fill::after { right: -4.5px; top: auto; bottom: -6px; }
+  .node { display: grid; grid-template-columns: 40px 1fr; column-gap: 14px; align-items: center; text-align: left; padding: 0; }
+  .dot { margin: 0; grid-row: span 2; }
 }
-.gate {
-  display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em;
-  padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent-2) 16%, transparent); color: var(--accent-2);
+.run { display: grid; grid-template-columns: 1fr 1.15fr; gap: 18px; align-items: stretch; }
+@media (max-width: 860px) { .run { grid-template-columns: 1fr; } }
+.now { display: flex; flex-direction: column; gap: 12px; }
+.now .num { font: 500 12px "JetBrains Mono", monospace; color: var(--accent); }
+.now h3 { margin: 0; font-size: 22px; letter-spacing: -0.015em; }
+.now p { margin: 0; color: var(--muted); font-size: 15px; }
+.now .out { font: 500 13px "JetBrains Mono", monospace; padding: 10px 12px; border-radius: 8px; background: var(--bg-alt); border: 1px solid var(--border); overflow-wrap: anywhere; }
+.now .out::before { content: "artifact  "; color: var(--muted); }
+.now.swap { animation: fade-in .45s ease; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.controls { display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap; align-items: center; }
+.controls button {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
+  font: 600 13px Inter, sans-serif; padding: 8px 14px; border-radius: 8px;
+}
+.controls button:hover { border-color: var(--accent); }
+.controls small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.console { height: 340px; display: flex; flex-direction: column; }
+.console pre { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; white-space: pre-wrap; overflow-wrap: anywhere; }
+.console .ln { display: block; animation: fade-in .3s ease; }
+.ln.cmd { color: #b4b4ff; } .ln.ok { color: #52d6a6; } .ln.bad { color: #ff7b7f; } .ln.wait { color: #f3c05a; } .ln.say { color: #e8e9ef; font-style: italic; }
+/* cross-agent */
+.xstage {
+  position: relative; display: grid; gap: 22px 28px;
+  grid-template-columns: 1fr 1.1fr 1fr; grid-template-areas: "claude hub codex" ". other .";
+}
+#x-claude { grid-area: claude; } #x-codex { grid-area: codex; } #x-hub { grid-area: hub; } #x-other { grid-area: other; }
+@media (max-width: 860px) {
+  .xstage { grid-template-columns: 1fr; grid-template-areas: "claude" "hub" "codex" "other"; }
+}
+.xagent, .xhub {
+  position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px; display: flex; flex-direction: column; gap: 8px;
+  transition: border-color .4s, box-shadow .4s, transform .4s;
+}
+.xagent.lit, .xhub.lit {
+  border-color: var(--accent); transform: translateY(-3px);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent), var(--shadow);
+}
+.xhub { background: var(--code-bg); color: var(--code-text); border-color: #2a2d38; }
+.xhub .xname em { font-style: normal; font-size: 11px; color: #52d6a6; margin-left: 6px; }
+.xhub ul { list-style: none; margin: 4px 0 0; padding: 0; font: 13px "JetBrains Mono", monospace; }
+.xhub li { padding: 5px 8px; border-radius: 6px; color: #b8bcc8; }
+.xhub li::before { content: "\2502  "; color: #555a68; }
+.xhub li.write { animation: write 1.6s ease; }
+@keyframes write { 0% { background: rgba(82,214,166,.28); color: #fff; } 100% { background: transparent; } }
+.xname { font-weight: 700; font-size: 17px; }
+.xwhere { font-size: 12px; color: var(--muted); margin-top: -6px; }
+.xagent small { color: var(--muted); font-size: 12.5px; }
+.xdock { position: absolute; top: 18px; right: 18px; width: 44px; height: 44px; border-radius: 50%; border: 2px dashed var(--border); }
+.xhub .xdock { border-color: #3a3d47; }
+.baton {
+  position: absolute; left: 0; top: 0; width: 44px; height: 44px; border-radius: 50%; z-index: 2;
+  display: grid; place-items: center; font: 600 9.5px "JetBrains Mono", monospace; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: transform 1.1s cubic-bezier(.65,0,.25,1); pointer-events: none;
+}
+.meter { position: relative; height: 22px; border-radius: 6px; background: var(--bg-alt); border: 1px solid var(--border); overflow: hidden; margin-top: 4px; --m: 0%; }
+.meter span { position: absolute; inset: 0 auto 0 0; width: var(--m); background: color-mix(in srgb, var(--accent) 30%, transparent); transition: width 1.2s ease, background .4s; }
+.meter.full span { background: color-mix(in srgb, var(--danger) 35%, transparent); }
+.meter em { position: relative; font: 500 11px "JetBrains Mono", monospace; font-style: normal; padding-left: 8px; line-height: 20px; color: var(--muted); }
+.meter.full em { color: var(--danger); font-weight: 600; }
+.why-h { font-size: 22px; letter-spacing: -0.015em; margin: 48px 0 18px; }
+.xtext { min-height: 52px; margin: 24px 0 10px; font-size: 16px; }
+.xtext b { font-family: "JetBrains Mono", monospace; color: var(--accent); margin-right: 6px; }
+.xtext.swap { animation: fade-in .45s ease; }
+.xdots { display: flex; gap: 8px; }
+.xdots button { width: 28px; height: 6px; border-radius: 3px; border: 0; background: var(--border); cursor: pointer; padding: 0; transition: background .3s, width .3s; }
+.xdots button.on { background: var(--accent); width: 44px; }
+
+/* reveal + hero motion */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0ms); }
+.reveal.in { opacity: 1; transform: none; }
+.hero { position: relative; overflow: hidden; isolation: isolate; }
+.hero::before, .hero::after {
+  content: ""; position: absolute; width: 520px; height: 520px; border-radius: 50%; filter: blur(80px);
+  opacity: .22; z-index: -1; animation: drift 18s ease-in-out infinite alternate;
+}
+.hero::before { background: var(--accent); top: -180px; left: -120px; }
+.hero::after { background: var(--accent-2); bottom: -220px; right: -140px; animation-delay: -9s; }
+@keyframes drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(140px, 60px) scale(1.15); } }
+h1 .grad { background-size: 200% auto; animation: shine 6s linear infinite; }
+@keyframes shine { to { background-position: 200% center; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
 /* skills */
@@ -230,9 +382,10 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
       Agentic Development Kit
     </a>
     <div class="links">
+      <a class="hide-sm" href="#asdlc">ASDLC</a>
       <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#agents">Cross-agent</a>
       <a class="hide-sm" href="#skills">Skills</a>
-      <a class="hide-sm" href="#harness">Harness</a>
       <a class="hide-sm" href="#start">Get started</a>
       <a href="https://github.com/macdipu/agentic-development-kit">GitHub</a>
       <button class="theme-btn" id="theme" aria-label="Toggle theme">
@@ -303,31 +456,137 @@ footer .wrap { display: flex; gap: 16px; justify-content: space-between; flex-wr
   </div>
 </section>
 
-<section id="how">
+<section id="asdlc">
+  <div class="wrap">
+    <div class="eyebrow">From SDLC to ASDLC</div>
+    <h2>Same lifecycle, now run by agents under a harness</h2>
+    <p class="sub">The Agentic SDLC (ASDLC) keeps the stages your team already knows. What changes is who carries each stage and what it leaves behind. A specialist skill does the work, a result contract hands it to the next stage, and a gate records who approved it.</p>
+    <div class="seg" role="group" aria-label="Lifecycle view">
+      <button type="button" id="seg-sdlc" aria-pressed="true">Classic SDLC</button>
+      <button type="button" id="seg-asdlc" aria-pressed="false">Agentic SDLC</button>
+    </div>
+    <div class="stages" id="stages"></div>
+    <div class="shifts">
+      <div class="shift"><s>Tribal knowledge</s><b>Cached project context, refreshed per module</b></div>
+      <div class="shift"><s>People hand off in chat</s><b>One result contract: status, evidence, blockers</b></div>
+      <div class="shift"><s>Sign-off by email</s><b>Recorded gates tied to scope revision</b></div>
+      <div class="shift"><s>Docs drift from code</s><b>Traceability from request to release</b></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="how">
   <div class="wrap">
     <div class="eyebrow">How it works</div>
-    <h2>One path from prompt to release</h2>
-    <p class="sub">A prompt or a document (<code>FEATURE.md</code>, <code>CR.md</code>, <code>BUG.md</code>, <code>HOTFIX.md</code>) becomes a canonical work item. The orchestrator then picks the next skill from the work type, stage, context, impact, policy and approvals.</p>
-    <div class="flow">
-      <div class="step"><small>01</small><b>Intake</b><span>Prompt or doc to work item</span></div>
-      <div class="arrow">&rarr;</div>
-      <div class="step"><small>02</small><b>Requirements</b><span>SRS, rules, acceptance</span><span class="gate">GATE</span></div>
-      <div class="arrow">&rarr;</div>
-      <div class="step"><small>03</small><b>Design</b><span>HLD, LLD, ADRs</span><span class="gate">GATE</span></div>
-      <div class="arrow">&rarr;</div>
-      <div class="step"><small>04</small><b>Tasks</b><span>Level + sprint handling</span></div>
-      <div class="arrow">&rarr;</div>
-      <div class="step"><small>05</small><b>Implement</b><span>Via persona, scoped tools</span></div>
-      <div class="arrow">&rarr;</div>
-      <div class="step"><small>06</small><b>QA</b><span>Review + test evidence</span><span class="gate">GATE</span></div>
-      <div class="arrow">&rarr;</div>
-      <div class="step"><small>07</small><b>Release</b><span>Readiness + UAT</span><span class="gate">HUMAN</span></div>
+    <h2>Watch a work item go from prompt to release</h2>
+    <p class="sub">A prompt or a document (<code>FEATURE.md</code>, <code>CR.md</code>, <code>BUG.md</code>, <code>HOTFIX.md</code>) becomes a canonical work item. The orchestrator then picks the next skill from the work type, stage, context, impact, policy and approvals. The harness holds the run at each gate until a decision is recorded.</p>
+
+    <div class="pipe" id="pipe"><span class="fill"></span></div>
+
+    <div class="run">
+      <div class="card now" id="now" aria-live="polite">
+        <span class="num" id="now-num"></span>
+        <h3 id="now-title"></h3>
+        <p id="now-text"></p>
+        <div class="chips" id="now-skills"></div>
+        <div class="out" id="now-out"></div>
+        <div class="controls">
+          <button type="button" id="play">Pause</button>
+          <button type="button" id="replay">Replay</button>
+          <small>Illustrative run with sample values. Click a stage to jump to it.</small>
+        </div>
+      </div>
+      <div class="term console">
+        <div class="term-head"><i></i><i></i><i></i><em>run r-7f3a &middot; WI-042 scheduled bank transfer</em></div>
+        <pre id="log"></pre>
+      </div>
     </div>
+
     <div class="grid g3" style="margin-top:40px">
       <div class="card"><h3>Workflows</h3><p><code>greenfield</code>, <code>brownfield</code>, <code>new-feature</code>, <code>change-request</code>, <code>bug-hotfix</code>, <code>sprint-planning</code>, all dispatched through <code>routing.md</code>.</p></div>
       <div class="card"><h3>Routing cache</h3><p>Route decisions are cached per work type, project type and module. A cache hit on the current kit version skips re-reading the workflow, persona and skill docs.</p></div>
       <div class="card"><h3>Result contract</h3><p>Every specialist returns the same handoff shape: status, evidence and blockers. The harness checks that shape before the run moves to the next stage.</p></div>
     </div>
+  </div>
+</section>
+
+<section id="agents">
+  <div class="wrap">
+    <div class="eyebrow">Cross-agent</div>
+    <h2>Works with any agent, on any machine</h2>
+    <p class="sub">The kit isn't tied to a single tool. Claude Code gets native hooks, while Codex and other shell-capable agents use the same CLI protocol. Run state and handoff notes live in git-tracked files. When one agent stops, whether it hit a usage limit, filled its context or you ended the day, another agent continues the same run from where it stopped.</p>
+
+    <div class="xstage" id="xstage">
+      <div class="xagent" id="x-claude">
+        <span class="xdock"></span>
+        <span class="xname">Claude Code</span>
+        <span class="xwhere">laptop</span>
+        <div class="chips"><code>SessionStart</code><code>PreToolUse</code><code>PreCompact</code><code>Stop</code></div>
+        <small>Native hooks, installed with <code>--agent claude</code></small>
+        <div class="meter" id="meter"><span></span><em>usage 62%</em></div>
+      </div>
+      <div class="xhub" id="x-hub">
+        <span class="xdock"></span>
+        <span class="xname">.agent/ <em>git-tracked</em></span>
+        <ul>
+          <li class="hubfile" data-f="handoff">HANDOFF.md</li>
+          <li class="hubfile" data-f="session">sessions/*.md</li>
+          <li class="hubfile" data-f="active">runtime/active-task.json</li>
+          <li class="hubfile" data-f="run">runtime/runs/r-7f3a.json</li>
+        </ul>
+      </div>
+      <div class="xagent" id="x-codex">
+        <span class="xdock"></span>
+        <span class="xname">Codex</span>
+        <span class="xwhere">desktop</span>
+        <div class="chips"><code>task-start</code><code>call-tool</code><code>task-finish</code><code>pickup</code></div>
+        <small>CLI adapter, installed with <code>--agent codex</code></small>
+      </div>
+      <div class="xagent" id="x-other">
+        <span class="xdock"></span>
+        <span class="xname">Any CLI agent</span>
+        <span class="xwhere">anywhere with a shell</span>
+        <div class="chips"><code>pickup</code><code>close-session</code><code>agent-handoff</code></div>
+        <small>Same CLI protocol plus the handoff skill</small>
+      </div>
+      <div class="baton" id="baton" aria-hidden="true">r-7f3a</div>
+    </div>
+    <p class="xtext" id="x-text" aria-live="polite"></p>
+    <div class="xdots" id="x-dots"></div>
+    <h3 class="why-h">Why it matters: switch agents without losing progress</h3>
+    <div class="grid g3">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg></div>
+        <h3>Limit reached? Switch agents</h3>
+        <p>If Claude Code hits its usage limit or fills its context window partway through a task, open Codex or another agent in the same repo. The session-start check shows the unfinished run, its stage and the next action.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></div>
+        <h3>Saved after every tool call</h3>
+        <p>The run, its checkpoint and its audit entries are saved together, atomically, after each governed call. <code>PreCompact</code> saves a checkpoint before the context is compressed. If a session stops abruptly, only the work after the last saved call can be lost.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <h3>A structured handoff</h3>
+        <p>The handoff note records the task, completed work, changed files, tests, blockers, decisions and next action, plus the operator and the git commit log.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></div>
+        <h3>No duplicate runs</h3>
+        <p>When a run is <code>RUNNING</code> or <code>BLOCKED</code>, the next agent resumes it instead of starting a new one. Unknown or damaged state has to be recovered explicitly with <code>doctor</code>.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3>Gates and budgets carry over</h3>
+        <p>Approvals, attempt counts and stage are stored in the run ledger rather than in any one agent's memory. The next agent inherits them and has to pass the same gates.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Same machine or another</h3>
+        <p>On the same machine the next agent can resume right away. On another machine, run <code>git pull</code> first. Either way you don't need to re-explain the task.</p>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:14px;margin-top:18px">Git doesn't lock a run across machines, so finish and push before resuming the run somewhere else. Native tool interception is available only in Claude Code. Other platforms need their own integration for it.</p>
   </div>
 </section>
 
@@ -521,6 +780,292 @@ groups.forEach(g => {
   tabs.appendChild(b);
 });
 render("All");
+
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+/* ---------- SDLC -> ASDLC ---------- */
+const LIFECYCLE = [
+  ["Intake", "Product manager",
+   "A ticket gets written. Half of the scope stays in someone's head.",
+   ["prompt-intake-adapter", "document-intake-adapter", "intake-change-classifier"],
+   "A prompt or FEATURE / CR / BUG / HOTFIX doc becomes one canonical work item with a type.",
+   "Missing facts stay open questions"],
+  ["Discovery", "Engineer",
+   "Someone re-reads the codebase from scratch for every new task.",
+   ["project-discovery-agent", "architecture-reverse-engineer", "test-baseline-agent"],
+   "Cached project context is reused. Only stale or missing modules are rediscovered.",
+   "File hashes flag stale context"],
+  ["Requirements", "Business analyst",
+   "A BRD turns into an SRS by hand, and the gaps get filled with guesses.",
+   ["business-requirement-analyzer", "srs-generator", "requirement-ui-verifier"],
+   "Requirements, rules and acceptance criteria go into a traceable SRS that is checked against the UI.",
+   "Business rules are never invented"],
+  ["Design", "Architect",
+   "Decisions are made in meetings and forgotten by the next quarter.",
+   ["change-impact-analyzer", "technical-architecture-planner", "technical-spec-generator", "adr-generator"],
+   "HLD, LLD and ADRs follow existing patterns, then a readiness verdict.",
+   "technical gate before implementation"],
+  ["Planning", "Tech lead",
+   "Every request gets the full Epic → Story → sprint ceremony.",
+   ["work-item-level-classifier", "sprint-readiness-verifier", "task-breakdown-agent"],
+   "The smallest useful hierarchy is chosen. Sprint planning runs only when it's needed.",
+   "Approved tasks are not replanned"],
+  ["Build", "Developer",
+   "The developer has full access, and nobody records which files or commands a change touched.",
+   ["implementation-agent", "BE / FE / Mobile personas"],
+   "A persona uses its skills to implement the task within its scope and reuse existing code.",
+   "PreToolUse guard + argv allowlist"],
+  ["QA", "QA engineer",
+   "Testing happens late and by hand. Evidence lives in screenshots in chat.",
+   ["code-review-agent", "automated-qa-agent", "web-preview-agent", "device-preview-agent"],
+   "Review, tests and previews record evidence. A failing check sends the task back for rework.",
+   "Attempt budgets per scope and stage"],
+  ["Release", "Release manager",
+   "Someone says \"LGTM\" in a thread and the release ships.",
+   ["release-readiness-agent"],
+   "Rollback, migration and monitoring evidence are checked, and the commits carry trace trailers.",
+   "uat + release gates: humans only"],
+];
+const stagesEl = document.getElementById("stages");
+stagesEl.innerHTML = LIFECYCLE.map(([name, who, pain, skills, does, ctl], i) => `
+  <div class="flip" style="--i:${i}">
+    <div class="flip-inner">
+      <div class="face front">
+        <span class="num"><span>0${i + 1}</span><span>manual</span></span>
+        <h3>${name}</h3>
+        <span class="who">${who}</span>
+        <p>${pain}</p>
+      </div>
+      <div class="face back">
+        <span class="num"><span>0${i + 1}</span><span>agentic</span></span>
+        <h3>${name}</h3>
+        <div class="chips">${skills.map(s => `<code>${esc(s)}</code>`).join("")}</div>
+        <p>${does}</p>
+        <span class="ctl">&#8627; ${ctl}</span>
+      </div>
+    </div>
+  </div>`).join("");
+const asdlcSec = document.getElementById("asdlc");
+const segS = document.getElementById("seg-sdlc"), segA = document.getElementById("seg-asdlc");
+let userToggled = false;
+function setMode(on) {
+  asdlcSec.classList.toggle("asdlc-on", on);
+  segS.setAttribute("aria-pressed", !on);
+  segA.setAttribute("aria-pressed", on);
+}
+segS.onclick = () => { userToggled = true; setMode(false); };
+segA.onclick = () => { userToggled = true; setMode(true); };
+if (reduced) setMode(true);
+else new IntersectionObserver((entries, obs) => {
+  if (entries[0].isIntersecting) {
+    obs.disconnect();
+    setTimeout(() => { if (!userToggled) setMode(true); }, 1100);
+  }
+}, { threshold: 0.45 }).observe(stagesEl);
+
+/* ---------- animated run ---------- */
+const NODES = [
+  ["Intake"], ["Context"], ["Requirements"], ["Technical"], ["Planning"],
+  ["Implement", "technical"], ["Review · QA"], ["UAT", "uat"], ["Release", "release"],
+];
+const FRAMES = [
+  { n: 0, st: "active", t: "Intake", p: "The prompt becomes a canonical work item and gets classified. Facts that are missing stay missing.",
+    k: ["prompt-intake-adapter", "intake-change-classifier"], o: "WI-042 · NEW_FEATURE · brownfield",
+    l: ["$ agentic_runtime.cli task-start …", "run r-7f3a RUNNING · stage INTAKE", "classifier → NEW_FEATURE (brownfield)"] },
+  { n: 1, st: "active", t: "Context first", p: "Project context loads before any broad discovery. Fresh modules are reused and only the stale one is refreshed.",
+    k: ["agentic-sdlc-orchestrator", "project-discovery-agent"], o: "payments/ AVAILABLE · transfers/ refreshed",
+    l: ["$ agentic_runtime.cli route-cache-get --work-type new-feature --project-type brownfield --module transfers",
+        "route cache HIT · kit_version match · skip workflow docs", "context payments/  AVAILABLE → reuse", "context transfers/ STALE → refresh this scope only"] },
+  { n: 2, st: "active", t: "Requirements", p: "Requirements, business rules and acceptance criteria go into a traceable SRS. A rule nobody has specified becomes an open question.",
+    k: ["business-requirement-analyzer", "srs-generator", "requirement-ui-verifier"], o: "SRS.md · 1 open question",
+    l: ["REQUIREMENTS → SRS.md", "open question Q1: same-day cut-off time? (not invented)", "requirement-ui-verifier → CONSISTENT"] },
+  { n: 3, st: "active", t: "Technical design", p: "Impact is traced across modules. The architecture and technical spec reuse existing patterns, and ADRs are written only for significant decisions.",
+    k: ["change-impact-analyzer", "technical-architecture-planner", "technical-spec-generator", "technical-readiness-verifier"], o: "ARCHITECTURE.md · TECH-SPEC.md",
+    l: ["impact → transfers, scheduler, notifications", "TECHNICAL → ARCHITECTURE.md, TECH-SPEC.md", "readiness verdict → TECHNICAL_READY"] },
+  { n: 4, st: "active", t: "Planning", p: "The work gets the smallest useful hierarchy. Here it joins the current sprint, so no full planning session is needed.",
+    k: ["work-item-level-classifier", "task-breakdown-agent"], o: "STORY_TASK · BE-101 · FE-101 · QA-101",
+    l: ["level → STORY_TASK", "sprint handling → ADD_TO_EXISTING_SPRINT", "tasks → BE-101, FE-101, QA-101"] },
+  { n: 5, st: "gate", t: "Technical gate", p: "Implementation can't start until the technical gate is approved. The run waits until a decision is recorded.",
+    k: [], o: "gate technical · awaiting decision",
+    l: ["gate technical · PENDING", "$ agentic_runtime.cli approve r-7f3a --gate technical --by lead --comment \"…\"", "gate technical · APPROVED"] },
+  { n: 5, st: "active", t: "Implement", p: "Personas implement the tasks. The PreToolUse hook checks every Bash, Write and Edit call against the task's permissions.",
+    k: ["implementation-agent", "BE persona", "FE persona"], o: "src/transfers/schedule.ts",
+    l: ["guard Edit src/transfers/schedule.ts → ALLOW", "guard Bash npm test → ALLOW (full argv match)", "guard Bash curl https://prod-api/… → DENY (not in allowlist)"] },
+  { n: 6, st: "fail", t: "Review · QA: fail", p: "Review and automated QA record their evidence. A failing check sends the task back for rework instead of letting it through.",
+    k: ["code-review-agent", "automated-qa-agent"], o: "tests · 41 passed · 1 failed",
+    l: ["code-review-agent → 1 finding (DST edge case)", "automated-qa → FAIL · 41 passed, 1 failed", "→ rework BE-101"] },
+  { n: 5, st: "active", t: "Rework", p: "The same task gets reworked within its budget. Attempts are counted per scope, stage and skill.",
+    k: ["implementation-agent"], o: "attempt 2 · BE-101",
+    l: ["attempt 2 · BE-101 · within budget", "guard Edit src/transfers/schedule.ts → ALLOW"] },
+  { n: 6, st: "active", t: "Review · QA: pass", p: "The evidence is green. The result contract is validated before the run moves on.",
+    k: ["automated-qa-agent", "web-preview-agent"], o: "tests · 42 passed · screenshots",
+    l: ["automated-qa → PASS · 42 passed", "web-preview-agent → screenshots captured", "result contract → VALID"] },
+  { n: 7, st: "gate", t: "UAT gate", p: "UAT is a human gate. It is never auto-approved, and the approval is recorded along with where it was given.",
+    k: [], o: "gate uat · human only",
+    l: ["gate uat · PENDING (human only)", "product owner: \"yes, approve\"", "$ agentic_runtime.cli approve r-7f3a --gate uat --by product-owner"] },
+  { n: 8, st: "gate", t: "Release gate", p: "Release readiness checks the rollback, migration and monitoring evidence, then waits for explicit approval.",
+    k: ["release-readiness-agent"], o: "gate release · awaiting decision",
+    l: ["release-readiness → READY (rollback · migration · monitoring)", "gate release · PENDING", "$ agentic_runtime.cli approve r-7f3a --gate release --by lead"] },
+  { n: 9, st: "done", t: "Completed", p: "Each task gets one commit, with trailers that trace back through QA and design to the original request.",
+    k: [], o: "feat(transfers): schedule bank transfers",
+    l: ["$ agentic_runtime.cli commit-message …", "  Work-Item: WI-042 · Task: BE-101 · Run: r-7f3a", "$ agentic_runtime.cli record-commit r-7f3a", "run r-7f3a COMPLETED"] },
+];
+const pipe = document.getElementById("pipe");
+pipe.insertAdjacentHTML("beforeend", NODES.map(([label, gate], i) =>
+  `<button type="button" class="node" data-n="${i}"><span class="dot">${String(i + 1).padStart(2, "0")}</span>` +
+  `<span class="lbl">${label}</span>${gate ? `<span class="gtag">${gate} gate</span>` : ""}</button>`).join(""));
+const nodeEls = [...pipe.querySelectorAll(".node")];
+const logEl = document.getElementById("log");
+const nowEl = document.getElementById("now");
+const playBtn = document.getElementById("play");
+let fi = 0, playing = !reduced, timers = [];
+
+function lineClass(s) {
+  if (s.startsWith("$")) return "cmd";
+  if (/DENY|FAIL|finding/.test(s)) return "bad";
+  if (/PENDING|STALE|rework|attempt/.test(s)) return "wait";
+  if (/"yes, approve"/.test(s)) return "say";
+  if (/ALLOW|APPROVED|PASS|COMPLETED|HIT|READY|VALID|CONSISTENT|AVAILABLE/.test(s)) return "ok";
+  return "";
+}
+function addLine(s) {
+  const span = document.createElement("span");
+  span.className = "ln " + lineClass(s);
+  span.textContent = s;
+  logEl.appendChild(span);
+  while (logEl.children.length > 14) logEl.firstChild.remove();
+}
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+function show(i, animateLog) {
+  clearTimers();
+  fi = i;
+  const f = FRAMES[i];
+  nodeEls.forEach((el, n) => {
+    el.className = "node" + (n < f.n || f.st === "done" ? " done" : n === f.n ? " " + f.st : "");
+  });
+  pipe.style.setProperty("--p", Math.min(f.n, NODES.length - 1) / (NODES.length - 1));
+  document.getElementById("now-num").textContent = f.st === "done" ? "RUN COMPLETED" : `STAGE ${String(f.n + 1).padStart(2, "0")} · ${f.st.toUpperCase()}`;
+  document.getElementById("now-title").textContent = f.t;
+  document.getElementById("now-text").textContent = f.p;
+  document.getElementById("now-skills").innerHTML = f.k.map(s => `<code>${esc(s)}</code>`).join("");
+  document.getElementById("now-out").textContent = f.o;
+  nowEl.classList.remove("swap"); void nowEl.offsetWidth; nowEl.classList.add("swap");
+  if (!animateLog) { f.l.forEach(addLine); return; }
+  f.l.forEach((s, j) => timers.push(setTimeout(() => addLine(s), 350 + j * 700)));
+  const hold = 350 + f.l.length * 700 + (f.st === "gate" ? 1400 : 900);
+  timers.push(setTimeout(() => {
+    if (!playing) return;
+    if (i + 1 < FRAMES.length) show(i + 1, true);
+    else timers.push(setTimeout(() => { logEl.innerHTML = ""; show(0, true); }, 3500));
+  }, hold));
+}
+function setPlaying(p) {
+  playing = p;
+  playBtn.textContent = p ? "Pause" : "Play";
+}
+playBtn.onclick = () => {
+  setPlaying(!playing);
+  if (playing) {
+    if (fi + 1 < FRAMES.length) show(fi + 1, true);
+    else { logEl.innerHTML = ""; show(0, true); }
+  } else clearTimers();
+};
+document.getElementById("replay").onclick = () => { logEl.innerHTML = ""; setPlaying(!reduced); show(0, !reduced); };
+nodeEls.forEach(el => el.onclick = () => {
+  const n = +el.dataset.n;
+  setPlaying(false);
+  logEl.innerHTML = "";
+  const target = FRAMES.findIndex(f => f.n === n);
+  for (let j = 0; j < target; j++) FRAMES[j].l.forEach(addLine);
+  show(target, false);
+});
+
+show(0, false);
+logEl.innerHTML = "";
+if (playing) {
+  playing = false;
+  new IntersectionObserver((entries, obs) => {
+    if (entries[0].isIntersecting) { obs.disconnect(); setPlaying(true); show(0, true); }
+  }, { threshold: 0.35 }).observe(pipe);
+} else {
+  setPlaying(false);
+  FRAMES[0].l.forEach(addLine);
+}
+
+/* ---------- cross-agent handoff ---------- */
+const XSTEPS = [
+  { at: "claude", on: ["claude"], files: ["run"], m: 62, t: "Claude Code is working on run r-7f3a. Native hooks guard every Bash, Write and Edit call, and the run ledger is saved after each one." },
+  { at: "claude", on: ["claude"], files: ["run"], m: 100, t: "Claude Code hits its usage limit partway through BE-101. The run, stage, approvals and budgets are already saved in .agent/." },
+  { at: "hub", on: ["claude", "hub"], files: ["handoff", "session"], m: 100, t: "The Stop hook writes HANDOFF.md and a session record: completed work, changed files, tests, blockers and next action." },
+  { at: "hub", on: ["hub"], files: ["run"], t: "git push. The .agent/ folder is git-tracked with repo-relative paths, so the whole run travels with the repo." },
+  { at: "codex", on: ["hub", "codex"], files: [], t: "Codex, on the same machine or after a git pull on another one, runs agentic_runtime.cli pickup and gets the condensed handoff note." },
+  { at: "codex", on: ["codex"], files: ["active"], t: "The midflight report shows r-7f3a is RUNNING, so Codex resumes that run instead of starting a new one." },
+  { at: "hub", on: ["codex", "hub"], files: ["handoff", "session"], t: "Codex finishes with task-finish, then close-session --agent codex writes the next handoff." },
+  { at: "other", on: ["hub", "other"], files: [], t: "Any other agent with a shell picks up the same way, through the CLI protocol and the agent-handoff skill." },
+];
+const xStage = document.getElementById("xstage");
+const baton = document.getElementById("baton");
+const xText = document.getElementById("x-text");
+const xDots = document.getElementById("x-dots");
+const meter = document.getElementById("meter");
+xDots.innerHTML = XSTEPS.map((_, i) => `<button type="button" aria-label="Step ${i + 1}" data-i="${i}"></button>`).join("");
+let xi = 0, xTimer = null;
+function place(id) {
+  const box = xStage.getBoundingClientRect();
+  const r = document.getElementById("x-" + id).querySelector(".xdock").getBoundingClientRect();
+  baton.style.transform = `translate(${r.left - box.left + r.width / 2 - 22}px, ${r.top - box.top + r.height / 2 - 22}px)`;
+}
+function xShow(i) {
+  xi = i;
+  const s = XSTEPS[i];
+  ["claude", "codex", "other", "hub"].forEach(id => document.getElementById("x-" + id).classList.toggle("lit", s.on.includes(id)));
+  document.querySelectorAll(".hubfile").forEach(el => {
+    el.classList.remove("write");
+    if (s.files.includes(el.dataset.f)) { void el.offsetWidth; el.classList.add("write"); }
+  });
+  place(s.at);
+  xText.classList.remove("swap"); void xText.offsetWidth; xText.classList.add("swap");
+  xText.innerHTML = `<b>${String(i + 1).padStart(2, "0")}</b> ${esc(s.t)}`;
+  [...xDots.children].forEach((d, j) => d.classList.toggle("on", j === i));
+  const m = s.m ?? 0;
+  meter.style.setProperty("--m", m + "%");
+  meter.classList.toggle("full", m >= 100);
+  meter.querySelector("em").textContent = m >= 100 ? "usage limit reached" : m ? `usage ${m}%` : "session closed";
+}
+function xRun() {
+  clearTimeout(xTimer);
+  xTimer = setTimeout(() => { xShow((xi + 1) % XSTEPS.length); xRun(); }, 3600);
+}
+xDots.onclick = e => { if (e.target.dataset.i) { xShow(+e.target.dataset.i); if (!reduced) xRun(); } };
+addEventListener("resize", () => place(XSTEPS[xi].at));
+xShow(0);
+if (!reduced) new IntersectionObserver((entries, obs) => {
+  if (entries[0].isIntersecting) { obs.disconnect(); xRun(); }
+}, { threshold: 0.4 }).observe(xStage);
+
+/* ---------- scroll reveal + count-up ---------- */
+if (!reduced && "IntersectionObserver" in window) {
+  const io = new IntersectionObserver(entries => entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+  }), { threshold: 0.12 });
+  document.querySelectorAll("section h2, section .sub, .card, .shift, .stages, .table-wrap, .term, .xstage").forEach((el, i) => {
+    el.classList.add("reveal");
+    el.style.setProperty("--d", (i % 3) * 70 + "ms");
+    io.observe(el);
+  });
+  document.querySelectorAll(".stat b").forEach(b => {
+    const end = +b.textContent, t0 = performance.now(), dur = 1200;
+    if (!end) return;
+    const tick = t => {
+      const k = Math.min(1, (t - t0) / dur);
+      b.textContent = Math.round(end * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    b.textContent = "0";
+    requestAnimationFrame(tick);
+  });
+}
 
 const root = document.documentElement;
 try { const t = localStorage.getItem("adk-theme"); if (t) root.dataset.theme = t; } catch (e) {}
