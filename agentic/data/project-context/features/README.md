@@ -1,10 +1,12 @@
 # Feature artifact storage
 
-Each work item that reaches requirements stage or beyond gets one folder here, named by its
-canonical work-item ID (the ID assigned during intake, e.g. `FEATURE-042`, `CR-013`):
+Each work item gets one folder here, named by its canonical work-item ID (the ID assigned
+during intake, e.g. `FEATURE-042`, `CR-013`; the same id the classifier records as
+`work_item_id`, which the runtime uses to check planning files):
 
 ```text
 agentic/data/project-context/features/<WORK-ITEM-ID>/
+├── WORK-ITEM.md          # canonical item from prompt-intake-adapter (prompt-first intake)
 ├── context.yaml          # optional, module-context.yaml-shaped snapshot for this feature
 ├── BRD.md                # copy or reference of the originating BRD/FEATURE/CR doc (optional)
 ├── SRS.md                # from srs-generator
@@ -12,8 +14,11 @@ agentic/data/project-context/features/<WORK-ITEM-ID>/
 ├── TECH-SPEC.md          # feature LLD, from technical-spec-generator
 ├── adr/
 │   └── ADR-XXX-title.md  # from adr-generator, only for significant decisions
+├── EPIC.md               # from sprint-planner, EPIC_STORY_TASK only
+├── stories/
+│   └── STORY-XXX.md      # from sprint-planner, EPIC_STORY_TASK / STORY_TASK
 └── tasks/
-    └── TASK-XXX.md       # from task-breakdown-agent
+    └── TASK-XXX.md       # from task-breakdown-agent (any hierarchy except existing-task)
 ```
 
 Templates for each file type live in `agentic/kit/templates/` (`brd.md`, `srs.md`, `feature-hld.md`,

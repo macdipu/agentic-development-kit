@@ -64,7 +64,7 @@ def validate_write(root, path, artifact_only=False):
     if any(relative.parts[:len(d.parts)] == d.parts for d in PROTECTED_DIRS_REL):
         raise PermissionError('Direct writes to the runtime ledger are denied; use the runtime CLI')
     if artifact_only:
-        allowed = ('agentic/data/project-context/', 'agentic/data/work-items/', 'agentic/data/artifacts/')
+        allowed = ('agentic/data/project-context/', 'agentic/data/artifacts/')
         if not relative.as_posix().startswith(allowed) or target.suffix not in {'.md', '.json', '.yaml', '.yml', '.txt', '.csv'}:
             raise PermissionError('Artifact writes require a document under a project artifact directory')
     return target

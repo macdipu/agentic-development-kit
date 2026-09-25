@@ -33,7 +33,7 @@ class AdoptionTests(unittest.TestCase):
         instructions = (self.host / 'AGENTS.md').read_text(encoding='utf-8')
         self.assertTrue(self.install()['ok'])
         self.assertEqual((self.host / 'AGENTS.md').read_text(encoding='utf-8'), instructions)
-        self.assertFalse((self.host / 'agentic/data/work-items/TASK-KIT-001.md').exists())
+        self.assertFalse((self.host / 'agentic/data/work-items').exists())
         self.assertFalse((self.host / 'agentic/data/project-context/kit-runtime.json').exists())
 
     def test_install_does_not_double_the_agents_import(self):

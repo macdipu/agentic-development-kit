@@ -4,7 +4,6 @@
   "confidence": "HIGH",
   "scope": "Local trusted-adapter runtime and its validation/adoption contracts",
   "evidence": [
-    "agentic/data/work-items/TASK-KIT-001.md",
     "agentic/kit/runtime/tests/"
   ],
   "freshness": {
@@ -47,7 +46,7 @@
       "agentic/kit/runtime/python/agentic_runtime/state_git.py": "12b9cee7a3e4b1fd2725a019c96d981ba87c74e568880ad78f3917f7a693978a",
       "agentic/kit/runtime/python/agentic_runtime/store.py": "61a13131d5d09f1b558cba33540c94fe04906d5321a9dd7c99532c9a0762b56c",
       "agentic/kit/runtime/python/agentic_runtime/timing.py": "934c38514ea43208c087b315949521e94e899093b88064f74f728760e168b68d",
-      "agentic/kit/runtime/python/agentic_runtime/tools.py": "5877f65f469c19f080cd2c9e4ce771aeff42d25cc189fb0713eb4f6bf5e93907"
+      "agentic/kit/runtime/python/agentic_runtime/tools.py": "abebaf875dc544fb96fc087509f88941b081718e36c3aadf7083ffb9004447e0"
     }
   },
   "limits": [

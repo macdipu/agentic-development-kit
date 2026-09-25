@@ -9,10 +9,7 @@ generated docs or state in the kit folders above this one.
 
 ```text
 data/
-├── project-context/     tracked   discovery cache + generated feature/CR docs (BRD, SRS, ...)
-├── work-items/           tracked   freeform task docs about the project itself (not the
-│                                   templated per-feature artifacts — those live under
-│                                   project-context/features/<id>/)
+└── project-context/     tracked   discovery cache + every work item's folder (features/<id>/)
 ```
 
 Runtime state is not here: it lives with the handoff notes under the repo-root `.agent/`
@@ -34,12 +31,13 @@ All of this is tracked in git — it's the project's accumulated context, not a 
 lose. Refresh only the affected module/feature scope when it goes stale; don't re-discover the
 whole repository for every task.
 
-## work-items/
+## Work items
 
-Freeform task docs for work on the project/kit itself that doesn't go through the
-BRD -> SRS -> architecture -> tasks pipeline (e.g. a bounded engineering task written directly
-with `agentic/kit/templates/task.md`). Per-feature tasks produced by `task-breakdown-agent` go under
-`project-context/features/<id>/tasks/` instead, not here.
+Every work item -- feature, CR, bug, hotfix, technical change, or a small task -- lives in
+one folder, `project-context/features/<WORK-ITEM-ID>/`: the canonical item
+(`WORK-ITEM.md` for prompt-first intake; a document-first item keeps its source file and
+records its path), then whatever the lifecycle derives (requirements, design, `EPIC.md`,
+`stories/`, `tasks/`). There is no separate work-items folder.
 
 ## Runtime state (`.agent/`)
 

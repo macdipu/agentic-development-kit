@@ -135,7 +135,7 @@ class UngovernedWriteTests(HarnessCase):
         self.start()
         self.assertEqual(self.decision(self.root / 'src/app.py'), 'deny')
         self.assertEqual(self.decision(self.root / 'src/app.py', 'Edit'), 'deny')
-        self.assertEqual(self.decision(self.root / 'agentic/data/work-items/T.md'), 'defer')
+        self.assertEqual(self.decision(self.root / 'agentic/data/project-context/features/X/WORK-ITEM.md'), 'defer')
         self.assertEqual(self.decision(self.root / '.agent/HANDOFF.md'), 'defer')
         self.assertEqual(self.decision(self.root.parent / 'outside-scratch.txt'), 'defer')
         denied = self.hook('pretooluse_gate.py', {'tool_name': 'Write', 'tool_input': {'file_path': str(self.root / 'src/app.py')}})

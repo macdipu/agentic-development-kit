@@ -19,7 +19,7 @@ Developer request, referenced artifacts, and existing work-item IDs.
 
 ## Deliverable
 
-Canonical work-item draft with source_request, objective, scope, exclusions, constraints, acceptance_criteria, references, and open_questions.
+Canonical work-item draft with source_request, objective, scope, exclusions, constraints, acceptance_criteria, references, and open_questions, written at `agentic/data/project-context/features/<work-item-id>/WORK-ITEM.md` (reuse an existing id when the request steers existing work; follow `agentic/kit/templates/feature.md`, `cr.md`, or `task.md` by work type). Return the id in `outputs.work_item_id`; later skills write beside it.
 
 ## Readiness boundary
 

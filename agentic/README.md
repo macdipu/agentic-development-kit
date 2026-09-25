@@ -20,7 +20,6 @@ agentic/
 │   └── runtime/                  # runtime guides, hooks, Python package, tests
 └── data/                              # DATA — see data/README.md
     ├── project-context/                # per-project discovery cache + generated feature docs
-    └── work-items/                       # freeform task docs (not templated feature artifacts)
 
 .agent/                                # repo root — agent state (see runtime README)
 ├── HANDOFF.md                         # local copy of the newest handoff (gitignored)
